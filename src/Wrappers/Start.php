@@ -30,6 +30,7 @@ use danog\MadelineProto\MTProto;
 use danog\MadelineProto\RPCErrorException;
 use danog\MadelineProto\Settings;
 use danog\MadelineProto\Tools;
+use danog\MadelineProto\WebAuthn\WebPasskey;
 use danog\MadelineProto\WebTemplate\BotTokenPage;
 use danog\MadelineProto\WebTemplate\LoginSelectionPage;
 use danog\MadelineProto\WebTemplate\PageNotice;
@@ -209,9 +210,11 @@ trait Start
     {
         try {
             $options = $this->getPasskeyLoginOptions();
+            $publicKey = WebPasskey::overrideRpId($options['options'] ?? []);
             $this->webJsonResponse([
                 'ok' => true,
-                'publicKey' => $options['options'] ?? null,
+                'publicKey' => $publicKey,
+                'rpId' => WebPasskey::getRpId(),
             ]);
         } catch (RPCErrorException $e) {
             $this->webJsonResponse(['ok' => false, 'error' => $e->getMessage()], 400);
