@@ -26,6 +26,10 @@ use danog\MadelineProto\Magic;
 use danog\MadelineProto\MTProto;
 use danog\MadelineProto\Settings;
 use danog\MadelineProto\Tools;
+use danog\MadelineProto\WebTemplate\ApiPage;
+use danog\MadelineProto\WebTemplate\FormField;
+use danog\MadelineProto\WebTemplate\InstructionStep;
+use danog\MadelineProto\WebTemplate\PageNotice;
 
 use const PHP_EOL;
 
@@ -84,34 +88,50 @@ trait Start
      */
     private function webAPIEcho(Settings $settings, string $message = ''): void
     {
-        $message = htmlentities($message);
-        $title = MTProto::getWebWarnings();
-        $title .= htmlentities(Lang::$current_lang['apiManualWeb']);
-        $title .= "<br>";
-        $title .= sprintf(Lang::$current_lang['apiChooseManualAutoTipWeb'], 'https://docs.madelineproto.xyz/docs/SETTINGS.html');
-        $title .= "<br><b>$message</b>";
-        $title .= '<ol>';
-        $title .= '<li>'.str_replace('https://my.telegram.org', '<a href="https://my.telegram.org" target="_blank">https://my.telegram.org</a>', htmlentities(Lang::$current_lang['apiManualInstructions0'])).'</li>';
-        $title .= '<li>'.htmlentities(Lang::$current_lang['apiManualInstructions1']).'</li>';
-        $title .= '<li><ul>';
-        foreach (['App title', 'Short name', 'URL', 'Platform', 'Description'] as $k => $key) {
-            $title .= "<li>$key: ";
-            $title .= htmlentities(Lang::$current_lang["apiAppInstructionsManual$k"]);
-            $title .= '</li>';
+        $notices = [];
+        $warnings = MTProto::getWebWarnings();
+        if ($warnings !== '') {
+            $notices[] = PageNotice::html('warning', $warnings);
         }
-        $title .= '</li></ul>';
-        $title .= '<li>'.htmlentities(Lang::$current_lang['apiManualInstructions2']).'</li>';
-        $title .= '</ol>';
-        $form = '<input type="string" name="api_id" placeholder="API ID" required/>';
-        $form .= '<input type="string" name="api_hash" placeholder="API hash" required/>';
+        if ($message !== '') {
+            $notices[] = PageNotice::error($message);
+        }
+
+        $details = '<ul class="mt-2 list-disc space-y-1 pl-5 text-gray-400">';
+        foreach (['App title', 'Short name', 'URL', 'Platform', 'Description'] as $k => $key) {
+            $details .= '<li><span class="font-medium text-gray-200">'.htmlentities($key).':</span> '.htmlentities(Lang::$current_lang["apiAppInstructionsManual$k"]).'</li>';
+        }
+        $details .= '</ul>';
+
+        $settingsLink = str_replace(
+            '<a ',
+            '<a class="font-medium text-blue-300 underline hover:text-blue-200" ',
+            sprintf(Lang::$current_lang['apiChooseManualAutoTipWeb'], 'https://docs.madelineproto.xyz/docs/SETTINGS.html'),
+        );
+        $myTelegramLink = str_replace(
+            'https://my.telegram.org',
+            '<a class="font-medium text-blue-300 underline hover:text-blue-200" href="https://my.telegram.org" target="_blank">https://my.telegram.org</a>',
+            htmlentities(Lang::$current_lang['apiManualInstructions0']),
+        );
+
+        $renderer = $this->wrapper->resolveWebApiTemplateRenderer($settings->getTemplates()->getHtmlTemplateRenderer());
         getOutputBufferStream()->write(
-            sprintf(
-                $settings->getTemplates()->getHtmlTemplate(),
-                $title,
-                $form,
+            $renderer->renderApiCredentialsPage(new ApiPage(
+                Lang::$current_lang['apiManualWeb'],
                 Lang::$current_lang['go'],
-                ''
-            )
+                $notices,
+                $settingsLink,
+                [
+                    InstructionStep::html($myTelegramLink),
+                    InstructionStep::text(Lang::$current_lang['apiManualInstructions1']),
+                    InstructionStep::html($details),
+                    InstructionStep::text(Lang::$current_lang['apiManualInstructions2']),
+                ],
+                [
+                    FormField::text('api_id', 'API ID', autocomplete: 'off', autofocus: true, inputMode: 'numeric'),
+                    FormField::text('api_hash', 'API hash', autocomplete: 'off', autocapitalize: 'none'),
+                ],
+            ))
         );
     }
 }

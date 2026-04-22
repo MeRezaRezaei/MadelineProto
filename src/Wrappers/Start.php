@@ -30,6 +30,15 @@ use danog\MadelineProto\MTProto;
 use danog\MadelineProto\RPCErrorException;
 use danog\MadelineProto\Settings;
 use danog\MadelineProto\Tools;
+use danog\MadelineProto\WebTemplate\BotTokenPage;
+use danog\MadelineProto\WebTemplate\LoginSelectionPage;
+use danog\MadelineProto\WebTemplate\PageNotice;
+use danog\MadelineProto\WebTemplate\PasskeyPrompt;
+use danog\MadelineProto\WebTemplate\PasswordPage;
+use danog\MadelineProto\WebTemplate\PhoneCodePage;
+use danog\MadelineProto\WebTemplate\PhoneNumberPage;
+use danog\MadelineProto\WebTemplate\QrCodePrompt;
+use danog\MadelineProto\WebTemplate\SignupPage;
 
 use const PHP_SAPI;
 
@@ -104,7 +113,11 @@ trait Start
             return $this->fullGetSelf();
         }
         if ($this->getAuthorization() === API::NOT_LOGGED_IN) {
-            if (isset($_POST['phone_number'])) {
+            if (isset($_GET['getPasskeyLogin'])) {
+                $this->webPasskeyLoginOptions();
+            } elseif (isset($_GET['completePasskeyLogin'])) {
+                $this->webCompletePasskeyLoginRequest();
+            } elseif (isset($_POST['phone_number'])) {
                 $this->webPhoneLogin();
             } elseif (isset($_POST['token'])) {
                 $this->webBotLogin();
@@ -192,6 +205,103 @@ trait Start
         }
     }
 
+    private function webPasskeyLoginOptions(): void
+    {
+        try {
+            $options = $this->getPasskeyLoginOptions();
+            $this->webJsonResponse([
+                'ok' => true,
+                'publicKey' => $options['options'] ?? null,
+            ]);
+        } catch (RPCErrorException $e) {
+            $this->webJsonResponse(['ok' => false, 'error' => $e->getMessage()], 400);
+        } catch (Exception $e) {
+            $this->webJsonResponse(['ok' => false, 'error' => $e->getMessage()], 400);
+        }
+    }
+
+    private function webCompletePasskeyLoginRequest(): void
+    {
+        try {
+            $payload = json_decode(file_get_contents('php://input') ?: '[]', true);
+            if (!\is_array($payload) || !isset($payload['credential']) || !\is_array($payload['credential'])) {
+                throw new Exception('Missing passkey credential payload.');
+            }
+
+            $this->completePasskeyLogin($this->normalizeWebPasskeyCredential($payload['credential']));
+            $this->webJsonResponse([
+                'ok' => true,
+                'reload' => true,
+            ]);
+        } catch (RPCErrorException $e) {
+            $this->webJsonResponse(['ok' => false, 'error' => $e->getMessage()], 400);
+        } catch (Exception $e) {
+            $this->webJsonResponse(['ok' => false, 'error' => $e->getMessage()], 400);
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $credential
+     * @return array{_: 'inputPasskeyCredentialPublicKey', id: string, raw_id: string, response: array{_: 'inputPasskeyResponseLogin', client_data: mixed, authenticator_data: string, signature: string, user_handle: string}}
+     */
+    private function normalizeWebPasskeyCredential(array $credential): array
+    {
+        if (($credential['_'] ?? null) !== 'inputPasskeyCredentialPublicKey') {
+            throw new Exception('Invalid passkey credential type.');
+        }
+        if (!isset($credential['id']) || !\is_string($credential['id']) || $credential['id'] === '') {
+            throw new Exception('Missing passkey credential ID.');
+        }
+        if (!isset($credential['raw_id']) || !\is_string($credential['raw_id']) || $credential['raw_id'] === '') {
+            throw new Exception('Missing passkey raw credential ID.');
+        }
+        if (!isset($credential['response']) || !\is_array($credential['response'])) {
+            throw new Exception('Missing passkey response payload.');
+        }
+
+        $response = $credential['response'];
+        if (($response['_'] ?? null) !== 'inputPasskeyResponseLogin') {
+            throw new Exception('Invalid passkey response type.');
+        }
+        if (!isset($response['client_data'])) {
+            throw new Exception('Missing passkey client data.');
+        }
+        if (\is_string($response['client_data'])) {
+            $decodedClientData = json_decode($response['client_data'], true);
+            if (!\is_array($decodedClientData)) {
+                throw new Exception('Invalid passkey client data.');
+            }
+            $response['client_data'] = $decodedClientData;
+        }
+        foreach (['authenticator_data', 'signature'] as $field) {
+            if (!isset($response[$field]) || !\is_string($response[$field]) || $response[$field] === '') {
+                throw new Exception("Missing passkey {$field}.");
+            }
+            $response[$field] = Tools::base64urlDecode($response[$field]);
+        }
+        $credential['raw_id'] = Tools::base64urlDecode($credential['raw_id']);
+        if (!isset($response['user_handle']) || !\is_string($response['user_handle']) || $response['user_handle'] === '') {
+            $response['user_handle'] = '';
+        } else {
+            $response['user_handle'] = Tools::base64urlDecode($response['user_handle']);
+        }
+
+        $credential['response'] = $response;
+
+        /** @var array{_: 'inputPasskeyCredentialPublicKey', id: string, raw_id: string, response: array{_: 'inputPasskeyResponseLogin', client_data: mixed, authenticator_data: string, signature: string, user_handle: string}} $credential */
+        return $credential;
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     */
+    private function webJsonResponse(array $payload, int $status = 200): void
+    {
+        http_response_code($status);
+        header('Content-type: application/json');
+        getOutputBufferStream()->write((string) json_encode($payload));
+    }
+
     /**
      * Echo page to console.
      *
@@ -200,18 +310,23 @@ trait Start
     private function webEcho(string $message = ''): void
     {
         $auth = $this->getAuthorization();
-        $form = null;
-        $trailer = '';
+        $renderer = $this->getSettings()->getTemplates()->getHtmlTemplateRenderer();
         if ($auth === API::NOT_LOGGED_IN) {
             if (isset($_POST['type'])) {
                 if ($_POST['type'] === 'phone') {
-                    $title = str_replace(':', '', Lang::$current_lang['loginUser']);
-                    $phone = htmlentities(Lang::$current_lang['loginUserPhoneWeb']);
-                    $form = "<input type='text' name='phone_number' placeholder='$phone' required/>";
+                    getOutputBufferStream()->write($renderer->renderPhoneNumberPage(new PhoneNumberPage(
+                        str_replace(':', '', Lang::$current_lang['loginUser']),
+                        Lang::$current_lang['go'],
+                        $this->getWebNotices($message),
+                        Lang::$current_lang['loginUserPhoneWeb'],
+                    )));
                 } else {
-                    $title = str_replace(':', '', Lang::$current_lang['loginBot']);
-                    $token = htmlentities(Lang::$current_lang['loginBotTokenWeb']);
-                    $form = "<input type='text' name='token' placeholder='$token' required/>";
+                    getOutputBufferStream()->write($renderer->renderBotTokenPage(new BotTokenPage(
+                        str_replace(':', '', Lang::$current_lang['loginBot']),
+                        Lang::$current_lang['go'],
+                        $this->getWebNotices($message),
+                        Lang::$current_lang['loginBotTokenWeb'],
+                    )));
                 }
             } elseif (isset($_GET['waitQrCodeOrLogin']) || isset($_GET['getQrCode'])) {
                 header('Content-type: application/json');
@@ -238,63 +353,75 @@ trait Start
                 getOutputBufferStream()->write(json_encode($result));
                 return;
             } else {
-                $title = Lang::$current_lang['loginChoosePromptWeb'];
-                $optionBot = htmlentities(Lang::$current_lang['loginOptionBot']);
-                $optionUser = htmlentities(Lang::$current_lang['loginOptionUser']);
                 \assert(isset($_SERVER['REQUEST_URI']));
-                $trailer = '
-                <div id="qr-code-container" style="display: none">
-                    <p>'.htmlentities(Lang::$current_lang['loginWebQr']).'</p>
-                    <div id="qr-code"></div>
-                </div>
-
-                <script>
-                function longPollQr(query) {
-                    var x = new XMLHttpRequest();
-                    x.onload = function() {
-                        var res = JSON.parse(this.responseText);
-                        if (res.logged_in) {
-                            window.location = window.location;
-                        } else {
-                            document.getElementById("qr-code-container").style = "";
-                            document.getElementById("qr-code").innerHTML = res.svg;
-                            longPollQr("waitQrCodeOrLogin");
-                        }
-                    };
-                    x.open("GET", "'.(explode('?', $_SERVER['REQUEST_URI'], 2)[0] ?? '').'?"+query, true);
-                    x.send();
-                }
-                longPollQr("getQrCode");
-                </script>';
-                $form = "<select name='type'><option value='phone'>$optionUser</option><option value='bot'>$optionBot</option></select>";
+                $requestPath = explode('?', $_SERVER['REQUEST_URI'], 2)[0] ?? '';
+                getOutputBufferStream()->write($renderer->renderLoginSelectionPage(new LoginSelectionPage(
+                    Lang::$current_lang['loginChoosePromptWeb'],
+                    Lang::$current_lang['go'],
+                    $this->getWebNotices($message),
+                    Lang::$current_lang['loginOptionUser'],
+                    Lang::$current_lang['loginOptionBot'],
+                    new QrCodePrompt(
+                        Lang::$current_lang['loginWebQr'],
+                        $requestPath,
+                        [
+                            Lang::$current_lang['loginWebQr1'],
+                            Lang::$current_lang['loginWebQr2'],
+                            Lang::$current_lang['loginWebQr3'],
+                        ],
+                    ),
+                    new PasskeyPrompt(
+                        'Passkey login',
+                        'Sign in with a saved passkey on this device using WebAuthn.',
+                        'Use a passkey',
+                        $requestPath,
+                    ),
+                )));
             }
         } elseif ($auth === \danog\MadelineProto\API::WAITING_CODE) {
-            $title = str_replace(':', '', Lang::$current_lang['loginUserCode']);
-            $phone = htmlentities(Lang::$current_lang['loginUserPhoneCodeWeb']);
-            $form = "<input type='text' name='phone_code' placeholder='$phone' required/>";
+            getOutputBufferStream()->write($renderer->renderPhoneCodePage(new PhoneCodePage(
+                str_replace(':', '', Lang::$current_lang['loginUserCode']),
+                Lang::$current_lang['go'],
+                $this->getWebNotices($message),
+                Lang::$current_lang['loginUserPhoneCodeWeb'],
+            )));
         } elseif ($auth === \danog\MadelineProto\API::WAITING_PASSWORD) {
-            $title = Lang::$current_lang['loginUserPassWeb'];
-            $hint = htmlentities(sprintf(
-                Lang::$current_lang['loginUserPassHint'],
-                $this->getHint(),
-            ));
-            $form = "<input type='password' name='password' placeholder='$hint' required/>";
+            getOutputBufferStream()->write($renderer->renderPasswordPage(new PasswordPage(
+                Lang::$current_lang['loginUserPassWeb'],
+                Lang::$current_lang['go'],
+                $this->getWebNotices($message),
+                sprintf(Lang::$current_lang['loginUserPassHint'], $this->getHint()),
+            )));
         } elseif ($auth === \danog\MadelineProto\API::WAITING_SIGNUP) {
-            $title = Lang::$current_lang['signupWeb'];
-            $firstName = Lang::$current_lang['signupFirstNameWeb'];
-            $lastName = Lang::$current_lang['signupLastNameWeb'];
-            $form = "<input type='text' name='first_name' placeholder='$firstName' required/><input type='text' name='last_name' placeholder='$lastName'/>";
+            getOutputBufferStream()->write($renderer->renderSignupPage(new SignupPage(
+                Lang::$current_lang['signupWeb'],
+                Lang::$current_lang['go'],
+                $this->getWebNotices($message),
+                Lang::$current_lang['signupFirstNameWeb'],
+                Lang::$current_lang['signupLastNameWeb'],
+            )));
         } else {
             return;
         }
-        $title = htmlentities($title);
-        $message = htmlentities($message).MTProto::getWebWarnings();
-        getOutputBufferStream()->write(sprintf(
-            $this->getSettings()->getTemplates()->getHtmlTemplate(),
-            "$title<br><b>$message</b>",
-            $form,
-            Lang::$current_lang['go'],
-            $trailer
-        ));
+    }
+
+    /**
+     * Build notices for the web login pages.
+     *
+     * @return list<PageNotice>
+     */
+    private function getWebNotices(string $message = ''): array
+    {
+        $notices = [];
+        if ($message !== '') {
+            $notices[] = PageNotice::error($message);
+        }
+
+        $warnings = MTProto::getWebWarnings();
+        if ($warnings !== '') {
+            $notices[] = PageNotice::html('warning', $warnings);
+        }
+
+        return $notices;
     }
 }

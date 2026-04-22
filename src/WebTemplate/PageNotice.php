@@ -1,0 +1,59 @@
+<?php declare(strict_types=1);
+
+/**
+ * This file is part of MadelineProto.
+ * MadelineProto is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+ * MadelineProto is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ * See the GNU Affero General Public License for more details.
+ * You should have received a copy of the GNU General Public License along with MadelineProto.
+ * If not, see <http://www.gnu.org/licenses/>.
+ *
+ * @author    Daniil Gentili <daniil@daniil.it>
+ * @copyright 2016-2025 Daniil Gentili <daniil@daniil.it>
+ * @license   https://opensource.org/licenses/AGPL-3.0 AGPLv3
+ * @link https://docs.madelineproto.xyz MadelineProto documentation
+ */
+
+namespace danog\MadelineProto\WebTemplate;
+
+use const ENT_QUOTES;
+use const ENT_SUBSTITUTE;
+
+use function htmlentities;
+
+/**
+ * Pre-rendered notice for a web page.
+ */
+final readonly class PageNotice
+{
+    private function __construct(
+        public string $tone,
+        public string $html,
+    ) {
+    }
+
+    public static function text(string $tone, string $text): self
+    {
+        return new self($tone, htmlentities($text, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'));
+    }
+
+    public static function html(string $tone, string $html): self
+    {
+        return new self($tone, $html);
+    }
+
+    public static function error(string $text): self
+    {
+        return self::text('error', $text);
+    }
+
+    public static function warning(string $text): self
+    {
+        return self::text('warning', $text);
+    }
+
+    public static function info(string $text): self
+    {
+        return self::text('info', $text);
+    }
+}

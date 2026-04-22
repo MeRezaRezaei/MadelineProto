@@ -159,14 +159,16 @@ final class API extends AbstractAPI
     private $unlock = null;
 
     /**
-     * Obtain the API ID UI template.
+     * Obtain the API ID UI template renderer class.
      */
     public function getWebAPITemplate(): string
     {
         return $this->wrapper->getWebApiTemplate();
     }
     /**
-     * Set the API ID UI template.
+     * Set the API ID UI template renderer class.
+     *
+     * Legacy raw HTML strings are automatically wrapped by the legacy renderer.
      */
     public function setWebApiTemplate(string $template): void
     {

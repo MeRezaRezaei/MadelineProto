@@ -21,11 +21,15 @@ declare(strict_types=1);
 namespace danog\MadelineProto;
 
 use danog\MadelineProto\Ipc\Client;
+use danog\MadelineProto\Settings\Templates;
+use danog\MadelineProto\WebTemplate\WebTemplateFactory;
+use danog\MadelineProto\WebTemplate\WebTemplateInterface;
 
 final class APIWrapper
 {
     private MTProto|Client|null $API = null;
     private string $webApiTemplate = '';
+    private string $webApiTemplateMarkup = '';
 
     /**
      * API wrapper.
@@ -39,13 +43,39 @@ final class APIWrapper
         $this->session = $session;
     }
 
+    public function __wakeup(): void
+    {
+        if (!isset($this->webApiTemplateMarkup)) {
+            $this->webApiTemplateMarkup = '';
+        }
+    }
+
     public function getWebApiTemplate(): string
     {
+        [$this->webApiTemplate, $this->webApiTemplateMarkup] = Templates::normalizeTemplateIdentifier($this->webApiTemplate, true, $this->webApiTemplateMarkup);
+
         return $this->webApiTemplate;
     }
+
+    public function getWebApiTemplateMarkup(): string
+    {
+        $this->getWebApiTemplate();
+
+        return $this->webApiTemplateMarkup;
+    }
+
     public function setWebApiTemplate(string $template): void
     {
-        $this->webApiTemplate = $template;
+        [$this->webApiTemplate, $this->webApiTemplateMarkup] = Templates::normalizeTemplateIdentifier($template, true);
+    }
+
+    public function resolveWebApiTemplateRenderer(WebTemplateInterface $fallback): WebTemplateInterface
+    {
+        if ($this->getWebApiTemplate() === '') {
+            return $fallback;
+        }
+
+        return WebTemplateFactory::fromTemplate($this->webApiTemplate, $this->webApiTemplateMarkup);
     }
 
     public function logger(mixed $param, int $level = Logger::NOTICE, string $file = ''): void
@@ -63,7 +93,7 @@ final class APIWrapper
      */
     public function __sleep(): array
     {
-        return ['API', 'webApiTemplate'];
+        return ['API', 'webApiTemplate', 'webApiTemplateMarkup'];
     }
 
     /**

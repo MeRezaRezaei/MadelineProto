@@ -212,6 +212,30 @@ trait Login
         $this->logger->logger(Lang::$current_lang['login_code_sent'], Logger::NOTICE);
         return $this->authorization;
     }
+
+    /**
+     * Fetch WebAuthn passkey request options for login.
+     */
+    public function getPasskeyLoginOptions(): array
+    {
+        $this->authFuture?->await();
+        $state = $this->loginState->getState()->state;
+        if ($state === \danog\MadelineProto\API::LOGGED_IN) {
+            throw new Exception(Lang::$current_lang['already_loggedIn']);
+        }
+        if ($state !== API::NOT_LOGGED_IN) {
+            throw new Exception('Passkey login can only be started before choosing another login method.');
+        }
+
+        return $this->methodCallAsyncRead(
+            'auth.initPasskeyLogin',
+            [
+                'api_id' => $this->settings->getAppInfo()->getApiId(),
+                'api_hash' => $this->settings->getAppInfo()->getApiHash(),
+                'specialMethodType' => SpecialMethodType::USER_RELATED,
+            ],
+        );
+    }
     /**
      * Complet user login using login code.
      *
@@ -252,6 +276,45 @@ trait Login
             $authorization['_'] = 'account.needSignup';
             return $authorization;
         }
+        $this->authFuture?->await();
+        return $authorization;
+    }
+
+    /**
+     * Complete WebAuthn passkey login.
+     *
+     * @param array{_: 'inputPasskeyCredentialPublicKey', id: string, raw_id: string, response: array{_: 'inputPasskeyResponseLogin', client_data: mixed, authenticator_data: string, signature: string, user_handle: string}} $credential
+     */
+    public function completePasskeyLogin(array $credential): array
+    {
+        $this->authFuture?->await();
+        if ($this->loginState->getState()->state !== API::NOT_LOGGED_IN) {
+            throw new Exception('Passkey login is not available in the current authorization state.');
+        }
+
+        try {
+            $authorization = $this->methodCallAsyncRead(
+                'auth.finishPasskeyLogin',
+                [
+                    'credential' => $credential,
+                    'specialMethodType' => SpecialMethodType::USER_RELATED,
+                ],
+            );
+        } catch (SessionPasswordNeededError) {
+            $this->logger->logger(Lang::$current_lang['login_2fa_enabled'], Logger::NOTICE);
+            $this->authorization = $this->getPassword();
+            if (!isset($this->authorization['hint'])) {
+                $this->authorization['hint'] = '';
+            }
+            $this->setLoginState(API::WAITING_PASSWORD);
+
+            return $this->authorization;
+        }
+
+        if ($authorization['_'] === 'auth.authorizationSignUpRequired') {
+            throw new Exception('Passkey login requires additional signup steps that are not supported yet.');
+        }
+
         $this->authFuture?->await();
         return $authorization;
     }
