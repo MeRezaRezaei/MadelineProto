@@ -41,5 +41,8 @@ final class Blacklist
         'upload.getFile' => 'You cannot use this method directly, use the upload, downloadToStream, downloadToFile, downloadToDir methods instead; see https://docs.madelineproto.xyz for more info',
         'upload.saveFilePart' => 'You cannot use this method directly, use the upload, downloadToStream, downloadToFile, downloadToDir methods instead; see https://docs.madelineproto.xyz for more info',
         'upload.saveBigFilePart' => 'You cannot use this method directly, use the upload, downloadToStream, downloadToFile, downloadToDir methods instead; see https://docs.madelineproto.xyz for more info',
+
+        'auth.initPasskeyLogin' => 'You cannot use this method directly, use the passkeyLogin method instead (see https://docs.madelineproto.xyz for more info)',
+        'auth.completePasskeyLogin' => 'You cannot use this method directly, use the completePasskeyLogin method instead (see https://docs.madelineproto.xyz for more info)',
     ];
 }

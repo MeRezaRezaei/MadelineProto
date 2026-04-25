@@ -273,6 +273,8 @@ trait ResponseHandler
                     $response = $this->API->getSecretChatController($body['peer'])->handleSent($body, $response);
                 } catch (SecretPeerNotInDbException) {
                 }
+            } elseif ($responseType === 'auth.PasskeyLoginOptions') {
+                $response['dc_id'] = $this->datacenter;
             }
         }
 

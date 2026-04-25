@@ -104,7 +104,9 @@ trait Start
             return $this->fullGetSelf();
         }
         if ($this->getAuthorization() === API::NOT_LOGGED_IN) {
-            if (isset($_POST['phone_number'])) {
+            if (isset($_POST['passkey'])) {
+                $this->webCompletePasskeyLogin();
+            } elseif (isset($_POST['phone_number'])) {
                 $this->webPhoneLogin();
             } elseif (isset($_POST['token'])) {
                 $this->webBotLogin();
@@ -140,6 +142,17 @@ trait Start
     {
         try {
             $this->phoneLogin($_POST['phone_number']);
+            $this->webEcho();
+        } catch (RPCErrorException $e) {
+            $this->webEcho(sprintf(Lang::$current_lang['apiError'], $e->getMessage()));
+        } catch (Exception $e) {
+            $this->webEcho(sprintf(Lang::$current_lang['apiError'], $e->getMessage()));
+        }
+    }
+    private function webCompletePasskeyLogin(): void
+    {
+        try {
+            $this->completePasskeyLogin($_POST['passkey'], $_POST['dc_id']);
             $this->webEcho();
         } catch (RPCErrorException $e) {
             $this->webEcho(sprintf(Lang::$current_lang['apiError'], $e->getMessage()));
@@ -213,6 +226,17 @@ trait Start
                     $token = htmlentities(Lang::$current_lang['loginBotTokenWeb']);
                     $form = "<input type='text' name='token' placeholder='$token' required/>";
                 }
+            } elseif (isset($_GET['getPasskey'])) {
+                header('Content-type: application/json');
+                try {
+                    $result = $this->passkeyLogin();
+                } catch (RPCErrorException $e) {
+                    $result = ['error' => $e->getMessage()];
+                } catch (Exception $e) {
+                    $result = ['error' => $e->getMessage()];
+                }
+                getOutputBufferStream()->write(json_encode($result));
+                return;
             } elseif (isset($_GET['waitQrCodeOrLogin']) || isset($_GET['getQrCode'])) {
                 header('Content-type: application/json');
                 try {
@@ -242,13 +266,18 @@ trait Start
                 $optionBot = htmlentities(Lang::$current_lang['loginOptionBot']);
                 $optionUser = htmlentities(Lang::$current_lang['loginOptionUser']);
                 \assert(isset($_SERVER['REQUEST_URI']));
+                $path = explode('?', $_SERVER['REQUEST_URI'], 2)[0] ?? '';
                 $trailer = '
+                <div id="passkey-login" style="display:none;margin-bottom:1em">
+                    <button type="button" onclick="passkeyLogin()">Login with passkey</button>
+                </div>
                 <div id="qr-code-container" style="display: none">
                     <p>'.htmlentities(Lang::$current_lang['loginWebQr']).'</p>
                     <div id="qr-code"></div>
                 </div>
 
                 <script>
+                var base = '.json_encode($path).';
                 function longPollQr(query) {
                     var x = new XMLHttpRequest();
                     x.onload = function() {
@@ -261,8 +290,43 @@ trait Start
                             longPollQr("waitQrCodeOrLogin");
                         }
                     };
-                    x.open("GET", "'.(explode('?', $_SERVER['REQUEST_URI'], 2)[0] ?? '').'?"+query, true);
+                    x.open("GET", base+"?"+query, true);
                     x.send();
+                }
+                function submitPasskey(credential, dcId) {
+                    var response = credential.response;
+                    var form = document.createElement("form");
+                    var input = document.createElement("input");
+                    form.method = "POST";
+                    input.type = "hidden";
+                    input.name = "passkey";
+                    input.value = JSON.stringify(credential.toJSON());
+                    form.appendChild(input);
+
+                    var dc_id = document.createElement("input");
+                    dc_id.type = "hidden";
+                    dc_id.name = "dc_id";
+                    dc_id.value = dcId;
+                    form.appendChild(dc_id);
+
+                    document.body.appendChild(form);
+                    form.submit();
+                }
+                function passkeyLogin() {
+                    var x = new XMLHttpRequest();
+                    x.onload = function() {
+                        var res = JSON.parse(this.responseText);
+                        var dcId = res.dc_id;
+                        var publicKey = PublicKeyCredential.parseCreationOptionsFromJSON(res.options.publicKey);
+                        navigator.credentials.get({publicKey: publicKey}).then(function(credential) {
+                            submitPasskey(credential, dcId);
+                        }, function() {});
+                    };
+                    x.open("GET", base+"?getPasskey", true);
+                    x.send();
+                }
+                if (window.PublicKeyCredential && window.XMLHttpRequest && window.atob && window.btoa && window.Uint8Array && navigator.credentials) {
+                    document.getElementById("passkey-login").style = "";
                 }
                 longPollQr("getQrCode");
                 </script>';

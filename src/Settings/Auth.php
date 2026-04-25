@@ -29,6 +29,11 @@ final class Auth extends SettingsAbstract
     protected int $maxAuthTries = 5;
 
     /**
+     * Passkey RP ID.
+     */
+    protected string $passkeyRpId = 'daniil.it';
+
+    /**
      * @deprecated Always true
      * Get whether to use PFS.
      */
@@ -64,6 +69,24 @@ final class Auth extends SettingsAbstract
     public function setMaxAuthTries(int $maxAuthTries): self
     {
         $this->maxAuthTries = max(1, $maxAuthTries);
+
+        return $this;
+    }
+
+    /**
+     * Get passkey RP ID.
+     */
+    public function getPasskeyRpId(): string
+    {
+        return $this->passkeyRpId;
+    }
+
+    /**
+     * Set passkey RP ID.
+     */
+    public function setPasskeyRpId(string $passkeyRpId): self
+    {
+        $this->passkeyRpId = $passkeyRpId;
 
         return $this;
     }

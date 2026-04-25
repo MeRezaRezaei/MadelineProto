@@ -182,6 +182,122 @@ trait Login
         } catch (CancelledException) {
         }
     }
+
+    /**
+     * Init passkey login.
+     */
+    public function passkeyLogin(): array
+    {
+        if ($this->loginState->getState()->state === API::LOGGED_IN) {
+            throw new Exception(Lang::$current_lang['already_loggedIn']);
+        }
+        $options = $this->methodCallAsyncRead(
+            'auth.initPasskeyLogin',
+            [
+                'api_id' => $this->settings->getAppInfo()->getApiId(),
+                'api_hash' => $this->settings->getAppInfo()->getApiHash(),
+                'specialMethodType' => SpecialMethodType::UNAUTHED_METHOD,
+            ],
+        );
+        $options['options']['publicKey']['rpId'] = $this->settings->getAuth()->getPasskeyRpId();
+        return $options;
+    }
+
+    /**
+     * Complete passkey login.
+     *
+     * @param string $credential Browser credential JSON
+     * @param int $initDcId Data center ID returned by passkeyLogin
+     */
+    public function completePasskeyLogin(string $credential, int $initDcId): array
+    {
+        if ($this->loginState->getState()->state === API::LOGGED_IN) {
+            throw new Exception(Lang::$current_lang['already_loggedIn']);
+        }
+        $credential = json_decode($credential, true, flags: JSON_THROW_ON_ERROR);
+        $response = [
+            '_' => 'inputPasskeyResponseLogin',
+            'client_data' => ['_' => 'dataJSON', 'data' => Tools::base64urlDecode($credential['response']['clientDataJSON'])],
+            'authenticator_data' => Tools::base64urlDecode($credential['response']['authenticatorData']),
+            'signature' => Tools::base64urlDecode($credential['response']['signature']),
+            'user_handle' => Tools::base64urlDecode($credential['response']['userHandle'] ?? ''),
+        ];
+        $userDcId = explode(':', $response['user_handle'], 2)[0];
+        $args = [
+            'credential' => [
+                '_' => 'inputPasskeyCredentialPublicKey',
+                'id' => $credential['id'],
+                'raw_id' => $credential['rawId'],
+                'response' => $response,
+            ],
+            'specialMethodType' => SpecialMethodType::UNAUTHED_METHOD,
+        ];
+        if ($userDcId !== $initDcId) {
+            $args['from_dc_id'] = $initDcId;
+            $args['from_auth_key_id'] = $this->datacenter->getDataCenterConnection($initDcId)->auth->getID();
+        }
+        try {
+            $authorization = $this->methodCallAsyncRead('auth.finishPasskeyLogin', $args, $userDcId);
+        } catch (SessionPasswordNeededError) {
+            $this->logger->logger(Lang::$current_lang['login_2fa_enabled'], Logger::NOTICE);
+            $this->authorization = $this->getPassword();
+            if (!isset($this->authorization['hint'])) {
+                $this->authorization['hint'] = '';
+            }
+            $this->setLoginState(API::WAITING_PASSWORD);
+
+            return $this->authorization;
+        }
+        $this->authFuture?->await();
+        return $authorization;
+    }
+
+    /**
+     * Init passkey registration.
+     */
+    public function initPasskeyRegistration(): array
+    {
+        $options = $this->methodCallAsyncRead(
+            'account.initPasskeyRegistration',
+            ['specialMethodType' => SpecialMethodType::USER_RELATED],
+        )['options'];
+        $options['publicKey']['rp']['id'] = $this->settings->getAuth()->getPasskeyRpId();
+        if (isset($options['publicKey']['rpId'])) {
+            $options['publicKey']['rpId'] = $this->settings->getAuth()->getPasskeyRpId();
+        }
+        return $options;
+    }
+
+    /**
+     * Register passkey.
+     *
+     * @param array|string $credential Browser credential JSON
+     */
+    public function registerPasskey(array|string $credential): array
+    {
+        if (
+            \is_string($credential)
+        ) {
+            $credential = json_decode($credential, true, flags: JSON_THROW_ON_ERROR);
+        }
+        return $this->methodCallAsyncRead(
+            'account.registerPasskey',
+            [
+                'credential' => [
+                    '_' => 'inputPasskeyCredentialPublicKey',
+                    'id' => $credential['id'],
+                    'raw_id' => $credential['rawId'],
+                    'response' => [
+                        '_' => 'inputPasskeyResponseRegister',
+                        'client_data' => ['_' => 'dataJSON', 'data' => Tools::base64urlDecode($credential['response']['clientDataJSON'])],
+                        'attestation_data' => Tools::base64urlDecode($credential['response']['attestationObject']),
+                    ],
+                ],
+                'specialMethodType' => SpecialMethodType::USER_RELATED,
+            ],
+        );
+    }
+
     /**
      * Login as user.
      *
