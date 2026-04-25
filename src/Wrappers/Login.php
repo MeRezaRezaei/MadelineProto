@@ -196,7 +196,6 @@ trait Login
             [
                 'api_id' => $this->settings->getAppInfo()->getApiId(),
                 'api_hash' => $this->settings->getAppInfo()->getApiHash(),
-                'specialMethodType' => SpecialMethodType::UNAUTHED_METHOD,
             ],
         );
         $options['options']['publicKey']['rpId'] = $this->settings->getAuth()->getPasskeyRpId();
@@ -230,7 +229,7 @@ trait Login
                 'raw_id' => $credential['rawId'],
                 'response' => $response,
             ],
-            'specialMethodType' => SpecialMethodType::UNAUTHED_METHOD,
+            'specialMethodType' => SpecialMethodType::USER_RELATED,
         ];
         if ($userDcId !== $initDcId) {
             $args['from_dc_id'] = $initDcId;

@@ -317,7 +317,7 @@ trait Start
                     x.onload = function() {
                         var res = JSON.parse(this.responseText);
                         var dcId = res.dc_id;
-                        var publicKey = PublicKeyCredential.parseCreationOptionsFromJSON(res.options.publicKey);
+                        var publicKey = PublicKeyCredential.parseRequestOptionsFromJSON(res.options.publicKey);
                         navigator.credentials.get({publicKey: publicKey}).then(function(credential) {
                             submitPasskey(credential, dcId);
                         }, function() {});
