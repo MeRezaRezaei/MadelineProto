@@ -152,7 +152,7 @@ trait Start
     private function webCompletePasskeyLogin(): void
     {
         try {
-            $this->completePasskeyLogin($_POST['passkey'], $_POST['dc_id']);
+            $this->completePasskeyLogin($_POST['passkey'], (int) $_POST['dc_id']);
             $this->webEcho();
         } catch (RPCErrorException $e) {
             $this->webEcho(sprintf(Lang::$current_lang['apiError'], $e->getMessage()));

@@ -221,7 +221,7 @@ trait Login
             'signature' => Tools::base64urlDecode($credential['response']['signature']),
             'user_handle' => Tools::base64urlDecode($credential['response']['userHandle'] ?? ''),
         ];
-        $userDcId = explode(':', $response['user_handle'], 2)[0];
+        $userDcId = (int) explode(':', $response['user_handle'], 2)[0];
         $args = [
             'credential' => [
                 '_' => 'inputPasskeyCredentialPublicKey',
