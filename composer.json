@@ -113,6 +113,9 @@
             "tools/build_docs/layerUpgrade.php"
         ]
     },
+    "bin": [
+        "bin/madeline-mcp"
+    ],
     "scripts": {
         "build": [
             "@docs",
