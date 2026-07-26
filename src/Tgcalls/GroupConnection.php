@@ -36,7 +36,6 @@ use Webrtc\Webrtc\Enum\ConnectionState;
 use Webrtc\Webrtc\RTCPeerConnection;
 use Throwable;
 
-use function React\Async\await;
 
 /**
  * WebRTC engine of a Telegram group call.
@@ -139,8 +138,8 @@ final class GroupConnection
      */
     public function buildJoinPayload(): string
     {
-        $description = await($this->peerConnection->createOffer());
-        await($this->peerConnection->setLocalDescription($description));
+        $description = $this->peerConnection->createOffer();
+        $this->peerConnection->setLocalDescription($description);
 
         $transceiver = $this->peerConnection->getTransceivers()[0]
             ?? throw new Exception('No local transceiver was created!');
@@ -286,12 +285,12 @@ final class GroupConnection
             /** @psalm-suppress TypeDoesNotContainType, RedundantCondition the awaited calls may set these */
             do {
                 $this->renegotiatePending = false;
-                $offer = await($this->peerConnection->createOffer());
-                await($this->peerConnection->setLocalDescription($offer));
+                $offer = $this->peerConnection->createOffer();
+                $this->peerConnection->setLocalDescription($offer);
                 // Fix up the mid => ssrc mapping now that mids are final.
                 $this->rebuildSourceMap($offer->getSdp());
                 $answer = GroupSdp::buildAnswer($offer->getSdp(), $this->transport, $this->sources);
-                await($this->peerConnection->setRemoteDescription(new RTCSessionDescription($answer, 'answer')));
+                $this->peerConnection->setRemoteDescription(new RTCSessionDescription($answer, 'answer'));
             } while ($this->renegotiatePending && !$this->closed);
         } catch (Throwable $e) {
             $this->call->log("Got $e while negotiating the WebRTC connection of {$this->call}", Logger::ERROR);

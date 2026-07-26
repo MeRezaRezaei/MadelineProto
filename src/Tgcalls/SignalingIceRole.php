@@ -24,7 +24,6 @@ use Webrtc\ICE\RTCIceGathererInterface;
 use Webrtc\ICE\RTCIceParameters;
 use Webrtc\ICE\RTCIceTransportInterface;
 use Evenement\EventEmitter;
-use React\Promise\PromiseInterface;
 
 /**
  * Reports a fixed ICE role to the SCTP stack, which is all it needs from a transport.
@@ -75,7 +74,7 @@ final class SignalingIceRole extends EventEmitter implements RTCIceTransportInte
         throw new Exception('The signaling SCTP association does not run over ICE!');
     }
 
-    public function start(RTCIceParameters $remoteIceParameters): PromiseInterface
+    public function start(RTCIceParameters $remoteIceParameters): void
     {
         throw new Exception('The signaling SCTP association does not run over ICE!');
     }

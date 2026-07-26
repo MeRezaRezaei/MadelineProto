@@ -40,7 +40,6 @@ use Webrtc\Webrtc\RTCPeerConnection;
 use Revolt\EventLoop;
 use Throwable;
 
-use function React\Async\await;
 
 /**
  * WebRTC engine of a modern one-to-one Telegram call.
@@ -276,9 +275,9 @@ final class Controller
     {
         try {
             $description = $answer
-                ? await($this->peerConnection->createAnswer())
-                : await($this->peerConnection->createOffer());
-            await($this->peerConnection->setLocalDescription($description));
+                ? $this->peerConnection->createAnswer()
+                : $this->peerConnection->createOffer();
+            $this->peerConnection->setLocalDescription($description);
             $this->sendSignalingMessage([
                 '@type' => $description->getType(),
                 'sdp' => $description->getSdp(),
@@ -338,8 +337,8 @@ final class Controller
     private function sendV2Setup(): void
     {
         try {
-            $offer = await($this->peerConnection->createOffer());
-            await($this->peerConnection->setLocalDescription($offer));
+            $offer = $this->peerConnection->createOffer();
+            $this->peerConnection->setLocalDescription($offer);
             $local = $this->peerConnection->getLocalDescription()?->getSdp() ?? $offer->getSdp();
 
             // tgcalls makes the caller the DTLS client and the callee the server.
@@ -378,7 +377,7 @@ final class Controller
         }
         try {
             $sdp = V2Sdp::buildRemoteDescription($offer, $this->peerInitialSetup, $this->peerContents, true);
-            await($this->peerConnection->setRemoteDescription(new RTCSessionDescription($sdp, 'answer')));
+            $this->peerConnection->setRemoteDescription(new RTCSessionDescription($sdp, 'answer'));
             $this->v2Negotiated = true;
             $this->hasRemoteDescription = true;
             $this->flushPendingCandidates();
@@ -500,7 +499,7 @@ final class Controller
 
     private function onRemoteDescription(string $type, string $sdp): void
     {
-        await($this->peerConnection->setRemoteDescription(new RTCSessionDescription($sdp, $type)));
+        $this->peerConnection->setRemoteDescription(new RTCSessionDescription($sdp, $type));
         $this->hasRemoteDescription = true;
         $this->flushPendingCandidates();
         if ($type === 'offer') {
