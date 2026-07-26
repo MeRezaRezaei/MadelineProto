@@ -211,6 +211,32 @@ final class Client extends ClientAbstract
     }
 
     /**
+     * Play file in group call.
+     */
+    public function groupCallPlay(int $id, LocalFile|RemoteUrl|ReadableStream $file): void
+    {
+        $params = [$id, &$file];
+        $wrapper = Wrapper::create($params, $this->session, $this->logger);
+        $wrapper->wrap($file, true);
+        $this->__call('groupCallPlayBlocking', $wrapper);
+    }
+
+    /**
+     * Play files on hold in group call.
+     */
+    public function groupCallPlayOnHold(int $id, LocalFile|RemoteUrl|ReadableStream ...$files): void
+    {
+        $params = [$id, $files];
+        $wrapper = Wrapper::create($params, $this->session, $this->logger);
+        foreach ($params as &$param) {
+            if ($param instanceof ReadableStream) {
+                $wrapper->wrap($param, true);
+            }
+        }
+        $this->__call('groupCallPlayOnHoldBlocking', $wrapper);
+    }
+
+    /**
      * Upload file from callable.
      *
      * The callable must accept two parameters: int $offset, int $size

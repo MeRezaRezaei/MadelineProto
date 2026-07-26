@@ -1,0 +1,242 @@
+<?php declare(strict_types=1);
+
+/**
+ * This file is part of MadelineProto.
+ * MadelineProto is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+ * MadelineProto is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ * See the GNU Affero General Public License for more details.
+ * You should have received a copy of the GNU General Public License along with MadelineProto.
+ * If not, see <http://www.gnu.org/licenses/>.
+ *
+ * @author    Daniil Gentili <daniil@daniil.it>
+ * @copyright 2016-2025 Daniil Gentili <daniil@daniil.it>
+ * @license   https://opensource.org/licenses/AGPL-3.0 AGPLv3
+ * @link https://docs.madelineproto.xyz MadelineProto documentation
+ */
+
+// IMPORTANT NOTE: Please keep the above copyright notice intact if copying or rewriting this file in another language.
+
+namespace danog\MadelineProto\Tgcalls;
+
+use danog\MadelineProto\Exception;
+
+/**
+ * Translation layer between the JSON payloads used by the Telegram group call SFU and SDP.
+ *
+ * The Telegram SFU does not speak SDP: clients send a small JSON "join payload" describing their
+ * ICE/DTLS parameters and outgoing audio SSRC, and receive back the SFU's own ICE/DTLS parameters
+ * and candidates. Since we drive a standard `RTCPeerConnection`, we synthesize the matching SDP
+ * answer here, using the locally generated offer as a template so that the codec and extension
+ * lines always stay consistent with what the local stack negotiated.
+ *
+ * The wire format is documented at https://core.telegram.org/api/group-calls and implemented by
+ * tgcalls in `group/GroupJoinPayloadInternal.cpp`.
+ *
+ * @internal
+ */
+final class GroupSdp
+{
+    /** The payload type the Telegram SFU always uses for OPUS. */
+    public const OPUS_PAYLOAD_TYPE = 111;
+    /** The RTP header extension ID the Telegram SFU always uses for the audio level. */
+    public const AUDIO_LEVEL_EXTENSION_ID = 1;
+    private const AUDIO_LEVEL_URI = 'urn:ietf:params:rtp-hdrext:ssrc-audio-level';
+
+    /**
+     * Build the JSON join payload sent to
+     * [phone.joinGroupCall](https://core.telegram.org/method/phone.joinGroupCall).
+     *
+     * @param string                     $ufrag       Local ICE username fragment.
+     * @param string                     $pwd         Local ICE password.
+     * @param list<array{string, string}> $fingerprints Local DTLS fingerprints, as `[algorithm, value]`.
+     * @param int                        $audioSsrc   Our outgoing audio SSRC.
+     * @param list<array{semantics: string, ssrcs: list<int>}> $sourceGroups Video source groups.
+     */
+    public static function buildJoinPayload(
+        string $ufrag,
+        string $pwd,
+        array $fingerprints,
+        int $audioSsrc,
+        array $sourceGroups = []
+    ): string {
+        $payload = [
+            // The SFU wants the SSRC as a signed 32-bit integer, exactly like groupCallParticipant.source.
+            'ssrc' => self::toSignedSsrc($audioSsrc),
+            'ufrag' => $ufrag,
+            'pwd' => $pwd,
+            'fingerprints' => array_map(
+                static fn (array $f): array => [
+                    'hash' => $f[0],
+                    'fingerprint' => $f[1],
+                    // tgcalls always acts as the DTLS server for group calls.
+                    'setup' => 'passive',
+                ],
+                $fingerprints
+            ),
+        ];
+        // The SFU only forwards video whose sources were declared when joining.
+        $payload['ssrc-groups'] = array_map(
+            static fn (array $group): array => [
+                'semantics' => $group['semantics'],
+                'sources' => array_map(self::toSignedSsrc(...), $group['ssrcs']),
+            ],
+            $sourceGroups
+        );
+        return json_encode($payload, JSON_THROW_ON_ERROR);
+    }
+
+    /**
+     * Parse the `params` returned in
+     * [updateGroupCallConnection](https://core.telegram.org/constructor/updateGroupCallConnection).
+     *
+     * @return array{stream: bool, rtmp: bool, transport: ?array}
+     */
+    public static function parseJoinResponse(string $params): array
+    {
+        $decoded = json_decode($params, true, flags: JSON_THROW_ON_ERROR);
+        if (!\is_array($decoded)) {
+            throw new Exception('Invalid group call join response!');
+        }
+        $stream = (bool) ($decoded['stream'] ?? false);
+        return [
+            'stream' => $stream,
+            'rtmp' => (bool) ($decoded['rtmp'] ?? false),
+            'transport' => \is_array($decoded['transport'] ?? null) ? $decoded['transport'] : null,
+        ];
+    }
+
+    /**
+     * Synthesize the SDP answer of the Telegram SFU.
+     *
+     * @param string             $offer     The SDP offer just generated by the local peer connection.
+     * @param array              $transport The `transport` object of the join response.
+     * @param array<string, int> $sources   Map of `mid` => remote audio SSRC, for the receive-only m-lines.
+     *                                      Any m-line missing from this map is treated as our own outgoing one.
+     */
+    public static function buildAnswer(string $offer, array $transport, array $sources): string
+    {
+        $ufrag = (string) ($transport['ufrag'] ?? '');
+        $pwd = (string) ($transport['pwd'] ?? '');
+        if ($ufrag === '' || $pwd === '') {
+            throw new Exception('Missing ICE credentials in group call join response!');
+        }
+        $fingerprints = [];
+        foreach ($transport['fingerprints'] ?? [] as $fingerprint) {
+            $fingerprints[] = 'a=fingerprint:'.$fingerprint['hash'].' '.$fingerprint['fingerprint'];
+        }
+        if ($fingerprints === []) {
+            throw new Exception('Missing DTLS fingerprints in group call join response!');
+        }
+        $candidates = [];
+        foreach ($transport['candidates'] ?? [] as $candidate) {
+            $candidates[] = self::formatCandidate($candidate);
+        }
+
+        /** @var list<string> $result */
+        $result = [];
+        $inMedia = false;
+        $mid = null;
+        /** @var list<string> $pending */
+        $pending = [];
+
+        $flush = static function (?string $mid) use (&$result, &$pending, $sources, $fingerprints, $candidates, $ufrag, $pwd): void {
+            if ($pending === []) {
+                return;
+            }
+            $ssrc = $mid !== null && isset($sources[$mid]) ? $sources[$mid] : null;
+            $result = array_merge($result, $pending);
+            $result[] = $ssrc !== null ? 'a=sendonly' : 'a=recvonly';
+            $result[] = 'a=rtcp-mux';
+            $result[] = 'a=rtcp:9 IN IP4 0.0.0.0';
+            $result[] = 'a=extmap:'.self::AUDIO_LEVEL_EXTENSION_ID.' '.self::AUDIO_LEVEL_URI;
+            $result[] = 'a=rtpmap:'.self::OPUS_PAYLOAD_TYPE.' opus/48000/2';
+            $result[] = 'a=fmtp:'.self::OPUS_PAYLOAD_TYPE.' minptime=10;useinbandfec=1';
+            $result[] = 'a=ice-ufrag:'.$ufrag;
+            $result[] = 'a=ice-pwd:'.$pwd;
+            $result = array_merge($result, $fingerprints);
+            $result[] = 'a=setup:active';
+            $result = array_merge($result, $candidates);
+            $result[] = 'a=end-of-candidates';
+            if ($ssrc !== null) {
+                $result[] = 'a=ssrc:'.$ssrc.' cname:tgcalls'.$ssrc;
+                $result[] = 'a=ssrc:'.$ssrc.' label:audio'.$ssrc;
+            }
+            $pending = [];
+        };
+
+        foreach (explode("\n", str_replace("\r\n", "\n", $offer)) as $line) {
+            $line = rtrim($line, "\r");
+            if ($line === '') {
+                continue;
+            }
+            if (str_starts_with($line, 'm=')) {
+                $flush($mid);
+                $inMedia = true;
+                $mid = null;
+                // Only OPUS is ever used with the SFU.
+                $pending[] = 'm=audio 9 UDP/TLS/RTP/SAVPF '.self::OPUS_PAYLOAD_TYPE;
+                $pending[] = 'c=IN IP4 0.0.0.0';
+                continue;
+            }
+            if (!$inMedia) {
+                if (str_starts_with($line, 'a=ice-lite')) {
+                    continue;
+                }
+                $result[] = $line;
+                if (str_starts_with($line, 'a=msid-semantic')) {
+                    // The SFU is ICE-lite: it never sends connectivity checks itself.
+                    $result[] = 'a=ice-lite';
+                }
+                continue;
+            }
+            if (str_starts_with($line, 'a=mid:')) {
+                $mid = substr($line, 6);
+                $pending[] = $line;
+            }
+            // Everything else (directions, codecs, candidates, ssrcs, ICE and DTLS parameters)
+            // is regenerated from the join response above.
+        }
+        $flush($mid);
+
+        return implode("\r\n", $result)."\r\n";
+    }
+
+    /**
+     * Convert an unsigned 32-bit SSRC to the signed representation used by the API.
+     */
+    public static function toSignedSsrc(int $ssrc): int
+    {
+        $ssrc &= 0xFFFFFFFF;
+        return $ssrc >= 0x80000000 ? $ssrc - 0x100000000 : $ssrc;
+    }
+
+    /**
+     * Convert a signed SSRC coming from the API to its unsigned 32-bit representation.
+     */
+    public static function toUnsignedSsrc(int $ssrc): int
+    {
+        return $ssrc & 0xFFFFFFFF;
+    }
+
+    private static function formatCandidate(array $candidate): string
+    {
+        $line = 'a=candidate:'
+            .$candidate['foundation'].' '
+            .$candidate['component'].' '
+            .$candidate['protocol'].' '
+            .$candidate['priority'].' '
+            .$candidate['ip'].' '
+            .$candidate['port'].' '
+            .'typ '.$candidate['type'];
+        if (isset($candidate['rel-addr'], $candidate['rel-port'])) {
+            $line .= ' raddr '.$candidate['rel-addr'].' rport '.$candidate['rel-port'];
+        }
+        if (isset($candidate['tcptype'])) {
+            $line .= ' tcptype '.$candidate['tcptype'];
+        }
+        if (isset($candidate['generation'])) {
+            $line .= ' generation '.$candidate['generation'];
+        }
+        return $line;
+    }
+}

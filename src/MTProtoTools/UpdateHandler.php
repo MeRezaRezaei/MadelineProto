@@ -1209,6 +1209,12 @@ trait UpdateHandler
                 EventLoop::queue($this->calls[$update['phone_call_id']]->onSignaling(...), (string) $update['data']);
             }
         }
+        if ($update['_'] === 'updateGroupCall'
+            || $update['_'] === 'updateGroupCallParticipants'
+            || $update['_'] === 'updateGroupCallConnection'
+        ) {
+            EventLoop::queue($this->handleGroupCallUpdate(...), $update);
+        }
         if ($update['_'] === 'updatePhoneCall') {
             switch ($update['phone_call']['_']) {
                 case 'phoneCallRequested':
@@ -1254,7 +1260,7 @@ trait UpdateHandler
                         return;
                     }
                     $controller = $this->calls[$update['phone_call']['id']];
-                    $controller->discard();
+                    $controller->onDiscarded($update['phone_call']);
                     $update['phone_call'] = $controller->public;
                     break;
                 case 'phoneCallEmpty':

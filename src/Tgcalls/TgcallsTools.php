@@ -18,97 +18,48 @@
 
 namespace danog\MadelineProto\Tgcalls;
 
-use Amp\ByteStream\BufferedReader;
-use Amp\ByteStream\ReadableBuffer;
-use danog\MadelineProto\VoIP\SignalingProtocolVersion;
-
 /** @internal */
 final class TgcallsTools
 {
-
-    public static function deserializeRtc(
-        SignalingProtocolVersion $tgcallsVersion,
-        ?int $type,
-        string $buffer
-    ): array {
-        if ($tgcallsVersion->isJson()) {
-            return json_decode($buffer, true, flags: JSON_THROW_ON_ERROR);
-        }
-        $buffer = new BufferedReader(new ReadableBuffer($buffer));
-        switch ($type) {
-            case 1:
-                $candidates = [];
-                for ($x = \ord($buffer->readLength(1)); $x > 0; $x--) {
-                    $candidates []= self::readString($buffer);
-                }
-                return [
-                    '_' => 'candidatesList',
-                    'ufrag' => self::readString($buffer),
-                    'pwd' => self::readString($buffer),
-                ];
-            case 2:
-                $formats = [];
-                for ($x = \ord($buffer->readLength(1)); $x > 0; $x--) {
-                    $name = self::readString($buffer);
-                    $parameters = [];
-                    for ($x = \ord($buffer->readLength(1)); $x > 0; $x--) {
-                        $key = self::readString($buffer);
-                        $value = self::readString($buffer);
-                        $parameters[$key] = $value;
-                    }
-                    $formats[]= [
-                        'name' => $name,
-                        'parameters' => $parameters,
-                    ];
-                }
-                return [
-                    '_' => 'videoFormats',
-                    'formats' => $formats,
-                    'encoders' => \ord($buffer->readLength(1)),
-                ];
-            case 3:
-                return ['_' => 'requestVideo'];
-            case 4:
-                $state = \ord($buffer->readLength(1));
-                return ['_' => 'remoteMediaState', 'audio' => $state & 0x01, 'video' => ($state >> 1) & 0x03];
-            case 5:
-                return ['_' => 'audioData', 'data' => self::readBuffer($buffer)];
-            case 6:
-                return ['_' => 'videoData', 'data' => self::readBuffer($buffer)];
-            case 7:
-                return ['_' => 'unstructuredData', 'data' => self::readBuffer($buffer)];
-            case 8:
-                return ['_' => 'videoParameters', 'aspectRatio' => unpack('V', $buffer->readLength(4))[1]];
-            case 9:
-                return ['_' => 'remoteBatteryLevelIsLow', 'isLow' => (bool) \ord($buffer->readLength(1))];
-            case 10:
-                $lowCost = (bool) \ord($buffer->readLength(1));
-                $isLowDataRequested = (bool) \ord($buffer->readLength(1));
-                return ['_' => 'remoteNetworkStatus', 'lowCost' => $lowCost, 'isLowDataRequested' => $isLowDataRequested];
-        }
-        return ['_' => 'unknown', 'type' => $type];
+    /**
+     * Whether realtime transcoding is available.
+     *
+     * The WebRTC stack itself is pure PHP and always available; the FFI extension (together with
+     * libopus, libvpx and ffmpeg) is only needed to convert media on the fly. Without it, calls
+     * work normally as long as the audio and video that are played back were already converted to
+     * the formats Telegram uses, which MadelineProto can also do offline.
+     */
+    public static function canTranscode(): bool
+    {
+        return \extension_loaded('ffi');
     }
 
+    /**
+     * Compress a signaling payload, as tgcalls' `gzipData` does.
+     */
+    public static function gzip(string $data): string
+    {
+        $compressed = gzencode($data, 9);
+        return $compressed === false ? $data : $compressed;
+    }
+
+    /**
+     * Transparently decompress a signaling payload, as tgcalls' `isGzip`/`gunzipData` pair does.
+     */
     public static function gunzip(string $data): string
     {
         if (\strlen($data) < 2) {
             return $data;
         }
 
-        if (($data[0] == \chr(0x1f) && $data[1] == \chr(0x8b)) || ($data[0] == \chr(0x78) && $data[1] == \chr(0x9c))) {
-            return gzdecode($data);
+        if ($data[0] === \chr(0x1f) && $data[1] === \chr(0x8b)) {
+            $result = @gzdecode($data);
+            return $result === false ? $data : $result;
+        }
+        if ($data[0] === \chr(0x78) && $data[1] === \chr(0x9c)) {
+            $result = @gzuncompress($data);
+            return $result === false ? $data : $result;
         }
         return $data;
-
-    }
-
-    private static function readString(BufferedReader $buffer): string
-    {
-        /** @psalm-suppress InvalidArgument */
-        return $buffer->readLength(\ord($buffer->readLength(1)));
-    }
-    private static function readBuffer(BufferedReader $buffer): string
-    {
-        return $buffer->readLength(unpack('n', $buffer->readLength(2))[1]);
     }
 }

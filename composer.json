@@ -63,17 +63,46 @@
         "danog/better-prometheus": "^0.1.1",
         "amphp/http-server": "^3.4.3",
         "danog/tg-dialog-id": "^2",
-        "symfony/polyfill-php83": "^1.32"
+        "symfony/polyfill-php83": "^1.32",
+        "evenement/evenement": "^3.0.2",
+        "ramsey/uuid": "^4.9.2",
+        "react/async": "^4.3",
+        "react/datagram": "^1.10",
+        "react/dns": "^1.14",
+        "react/event-loop": "^1.6",
+        "react/promise": "^3.3",
+        "react/socket": "^1.17",
+        "revolt/event-loop-adapter-react": "^1.1.1",
+        "danog/php-rtc-av": "^1.0.1000",
+        "danog/php-rtc-codecs": "^1.0.1000",
+        "danog/php-rtc-dtls": "^1.0.1000",
+        "danog/php-rtc-ice": "^1.0.1000",
+        "danog/php-rtc-ntp": "^1.0.1000",
+        "danog/php-rtc-rtcp": "^1.0.1000",
+        "danog/php-rtc-rtp": "^1.0.1000",
+        "danog/php-rtc-sctp": "^1.0.1000",
+        "danog/php-rtc-srtp": "^1.0.1000",
+        "danog/php-rtc-ssl": "^1.0.1000",
+        "danog/php-rtc-stun": "^1.0.1000",
+        "danog/php-rtc-webrtc": "^1.0.1000",
+        "danog/php-rtc-datachannel": "^1.0.1000",
+        "danog/php-rtc-sdp": "^1.0.1000",
+        "danog/php-rtc-stats": "^1.0.1000",
+        "danog/php-rtc-turn": "^1.0.1000",
+        "danog/php-rtc-mdns": "^1.0.1000",
+        "danog/php-rtc-opus": "^1.0.1000",
+        "danog/php-rtc-vpx": "^1.0.1000",
+        "danog/php-rtc-exception": "^1.0.1000",
+        "danog/php-rtc-mixin": "^1.0.1000",
+        "danog/php-rtc-rtp-parameter": "^1.0.1000"
     },
     "require-dev": {
-        "quasarstream/webrtc": "^1.0",
         "ext-ctype": "*",
         "danog/phpdoc": "^0.1.24",
         "phpunit/phpunit": "^9.6.29",
         "amphp/phpunit-util": "^3",
         "bamarni/composer-bin-plugin": "1.8.2",
         "symfony/yaml": "^6.4.26",
-        "revolt/event-loop-adapter-react": "^1.1.1",
         "dg/bypass-finals": "dev-master",
         "brianium/paratest": "^6.11.1",
         "vimeo/psalm": "dev-master",
@@ -81,7 +110,7 @@
     },
     "suggest": {
         "ext-primemodule": "Install the primemodule and FFI extensions to speed up MadelineProto (https://prime.madelineproto.xyz)",
-        "ext-ffi": "Install the primemodule and FFI extensions to speed up MadelineProto (https://prime.madelineproto.xyz)",
+        "ext-ffi": "Install the FFI extension (with libopus, libvpx and ffmpeg) to transcode audio and video in realtime; not required to play back pre-converted files",
         "ext-pdo": "Install the pdo extension to store session data on MySQL",
         "ext-openssl": "Install the openssl extension for faster crypto",
         "ext-uv": "Install the uv extension to greatly speed up MadelineProto!",
@@ -138,8 +167,12 @@
         "paratest": "@php -dzend.assertions=1 ./vendor/bin/paratest -fv",
         "paratest-light": "@php -dzend.assertions=1 ./vendor/bin/paratest -fvc phpunit-light.xml",
         "bin": "echo 'bin not installed'",
-        "post-install-cmd": ["@composer bin all install --ansi"],
-        "post-update-cmd": ["@composer bin all update --ansi"]
+        "post-install-cmd": [
+            "@composer bin all install --ansi"
+        ],
+        "post-update-cmd": [
+            "@composer bin all update --ansi"
+        ]
     },
     "config": {
         "allow-plugins": {
@@ -148,5 +181,95 @@
             "dealerdirect/phpcodesniffer-composer-installer": true,
             "symfony/thanks": true
         }
-    }
+    },
+    "repositories": [
+        {
+            "type": "vcs",
+            "url": "https://github.com/danog/php-rtc-av.git"
+        },
+        {
+            "type": "vcs",
+            "url": "https://github.com/danog/php-rtc-codecs.git"
+        },
+        {
+            "type": "vcs",
+            "url": "https://github.com/danog/php-rtc-dtls.git"
+        },
+        {
+            "type": "vcs",
+            "url": "https://github.com/danog/php-rtc-ice.git"
+        },
+        {
+            "type": "vcs",
+            "url": "https://github.com/danog/php-rtc-ntp.git"
+        },
+        {
+            "type": "vcs",
+            "url": "https://github.com/danog/php-rtc-rtcp.git"
+        },
+        {
+            "type": "vcs",
+            "url": "https://github.com/danog/php-rtc-rtp.git"
+        },
+        {
+            "type": "vcs",
+            "url": "https://github.com/danog/php-rtc-sctp.git"
+        },
+        {
+            "type": "vcs",
+            "url": "https://github.com/danog/php-rtc-srtp.git"
+        },
+        {
+            "type": "vcs",
+            "url": "https://github.com/danog/php-rtc-ssl.git"
+        },
+        {
+            "type": "vcs",
+            "url": "https://github.com/danog/php-rtc-stun.git"
+        },
+        {
+            "type": "vcs",
+            "url": "https://github.com/danog/php-rtc-webrtc.git"
+        },
+        {
+            "type": "vcs",
+            "url": "https://github.com/danog/php-rtc-datachannel.git"
+        },
+        {
+            "type": "vcs",
+            "url": "https://github.com/danog/php-rtc-sdp.git"
+        },
+        {
+            "type": "vcs",
+            "url": "https://github.com/danog/php-rtc-stats.git"
+        },
+        {
+            "type": "vcs",
+            "url": "https://github.com/danog/php-rtc-turn.git"
+        },
+        {
+            "type": "vcs",
+            "url": "https://github.com/danog/php-rtc-mdns.git"
+        },
+        {
+            "type": "vcs",
+            "url": "https://github.com/danog/php-rtc-opus.git"
+        },
+        {
+            "type": "vcs",
+            "url": "https://github.com/danog/php-rtc-vpx.git"
+        },
+        {
+            "type": "vcs",
+            "url": "https://github.com/danog/php-rtc-exception.git"
+        },
+        {
+            "type": "vcs",
+            "url": "https://github.com/danog/php-rtc-mixin.git"
+        },
+        {
+            "type": "vcs",
+            "url": "https://github.com/danog/php-rtc-rtp-parameter.git"
+        }
+    ]
 }

@@ -208,6 +208,26 @@ trait AuthKeyHandler
     }
 
     /**
+     * Play the VP8 video and OPUS audio of a WebM file in a call.
+     *
+     * The file is demuxed in pure PHP and its frames are sent as-is, so no transcoding (and thus
+     * no FFI extension) is involved; convert your media to WebM with VP8 video and OPUS audio
+     * beforehand.
+     */
+    public function callPlayVideo(int $id, LocalFile|RemoteUrl|ReadableStream $file): void
+    {
+        ($this->calls[$id] ?? null)?->playVideo($file);
+    }
+
+    /**
+     * Stop transmitting video in a call.
+     */
+    public function callStopVideo(int $id): void
+    {
+        ($this->calls[$id] ?? null)?->stopVideo();
+    }
+
+    /**
      * When called, skips to the next file in the playlist.
      */
     public function skipPlay(int $id): void
@@ -300,5 +320,29 @@ trait AuthKeyHandler
     public function getCallState(int $id): ?CallState
     {
         return ($this->calls[$id] ?? null)?->getCallState();
+    }
+
+    /**
+     * Mute or unmute our own audio stream in a call.
+     */
+    public function setCallMuted(int $id, bool $muted = true): void
+    {
+        ($this->calls[$id] ?? null)?->setMuted($muted);
+    }
+
+    /**
+     * Whether our own audio stream is muted in a call.
+     */
+    public function isCallMuted(int $id): bool
+    {
+        return ($this->calls[$id] ?? null)?->isMuted() ?? true;
+    }
+
+    /**
+     * Get the media state of the other party of a call, as reported by their client.
+     */
+    public function getCallRemoteMediaState(int $id): ?MediaState
+    {
+        return ($this->calls[$id] ?? null)?->getRemoteMediaState();
     }
 }

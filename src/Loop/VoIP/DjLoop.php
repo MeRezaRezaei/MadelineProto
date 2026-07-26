@@ -32,10 +32,8 @@ use danog\MadelineProto\LocalFile;
 use danog\MadelineProto\Loop\VoIPLoop;
 use danog\MadelineProto\Ogg;
 use danog\MadelineProto\RemoteUrl;
+use danog\MadelineProto\Tgcalls\CallInterface;
 use danog\MadelineProto\Tools;
-use danog\MadelineProto\VoIP;
-use danog\MadelineProto\VoIP\CallState;
-use danog\MadelineProto\VoIPController;
 use Revolt\EventLoop;
 use SplQueue;
 use Throwable;
@@ -72,7 +70,7 @@ final class DjLoop extends VoIPLoop
 
     private bool $pause = false;
 
-    public function __construct(VoIPController $instance)
+    public function __construct(CallInterface $instance)
     {
         parent::__construct($instance);
         $this->packetQueuePrimary = new SplQueue();
@@ -130,7 +128,7 @@ final class DjLoop extends VoIPLoop
     #[\Override]
     protected function loop(): ?float
     {
-        if ($this->instance->getCallState() === CallState::ENDED) {
+        if ($this->instance->isCallEnded()) {
             $this->instance->log("Exiting DJ loop in $this because the call ended!");
             return self::STOP;
         }
@@ -226,14 +224,32 @@ final class DjLoop extends VoIPLoop
             }
         }
     }
+    /**
+     * Pull the next OPUS packet, waiting for one if the playlist is not exhausted.
+     */
     public function pullPacket(): ?string
+    {
+        return $this->doPullPacket(true);
+    }
+
+    /**
+     * Pull the next OPUS packet if one is immediately available.
+     *
+     * Used by the WebRTC playback track, which is polled from a callback that must never suspend.
+     */
+    public function tryPullPacket(): ?string
+    {
+        return $this->doPullPacket(false);
+    }
+
+    private function doPullPacket(bool $blocking): ?string
     {
         if ($this->pause) {
             return null;
         }
         $queue = $this->playingPrimary ? $this->packetQueuePrimary : $this->packetQueueSecondary;
         if ($queue->isEmpty()) {
-            if ($this->instance->getCallState() === CallState::ENDED || !$this->isRunning()) {
+            if ($this->instance->isCallEnded() || !$this->isRunning()) {
                 return null;
             }
             if ($this->readingPrimary !== $this->playingPrimary) {
@@ -243,7 +259,7 @@ final class DjLoop extends VoIPLoop
                     $this->descriptionSecondary = null;
                 }
                 $this->playingPrimary = !$this->playingPrimary;
-                return $this->pullPacket();
+                return $this->doPullPacket($blocking);
             }
             if ($this->isPaused()) {
                 if ($this->inputFiles) {
@@ -256,6 +272,9 @@ final class DjLoop extends VoIPLoop
                 $this->playingHold = true;
                 $this->inputFiles []= $this->holdFiles[($this->holdIndex++) % \count($this->holdFiles)];
                 Assert::true($this->resume());
+                return null;
+            }
+            if (!$blocking) {
                 return null;
             }
             $this->packetDeferred ??= new DeferredFuture;

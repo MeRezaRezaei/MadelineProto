@@ -22,6 +22,7 @@ use danog\MadelineProto\EventHandler\SimpleFilters;
 use danog\MadelineProto\EventHandler\Update;
 use danog\MadelineProto\VoIP\CallState;
 use danog\MadelineProto\VoIP\DiscardReason;
+use danog\MadelineProto\VoIP\MediaState;
 
 /**
  * This update represents a VoIP Telegram call.
@@ -36,6 +37,15 @@ final class VoIP extends Update implements SimpleFilters
     public readonly int $otherID;
     /** When was the call created */
     public readonly int $date;
+    /** Why the call was discarded, if it was. */
+    public ?DiscardReason $discardReason = null;
+    /**
+     * If the call was upgraded to a [conference call »](https://core.telegram.org/api/group-calls#conference-calls),
+     * the [conference deep link »](https://core.telegram.org/api/links#conference-links) slug of the new conference.
+     *
+     * Conference calls are end-to-end encrypted and cannot be joined by MadelineProto yet.
+     */
+    public ?string $conferenceSlug = null;
 
     /**
      * Constructor.
@@ -121,6 +131,26 @@ final class VoIP extends Update implements SimpleFilters
         return $this;
     }
     /**
+     * Play the VP8 video and OPUS audio of a WebM file.
+     */
+    public function playVideo(LocalFile|RemoteUrl|ReadableStream $file): self
+    {
+        $this->getClient()->callPlayVideo($this->callID, $file);
+
+        return $this;
+    }
+
+    /**
+     * Stop transmitting video.
+     */
+    public function stopVideo(): self
+    {
+        $this->getClient()->callStopVideo($this->callID);
+
+        return $this;
+    }
+
+    /**
      * When called, skips to the next file in the playlist.
      */
     public function skip(): self
@@ -187,6 +217,34 @@ final class VoIP extends Update implements SimpleFilters
     public function getCurrent(): RemoteUrl|LocalFile|string|null
     {
         return $this->getClient()->callGetCurrent($this->callID);
+    }
+
+    /**
+     * Mute or unmute our own audio stream.
+     */
+    public function setMuted(bool $muted = true): self
+    {
+        $this->getClient()->setCallMuted($this->callID, $muted);
+
+        return $this;
+    }
+
+    /**
+     * Whether our own audio stream is muted.
+     */
+    public function isMuted(): bool
+    {
+        return $this->getClient()->isCallMuted($this->callID);
+    }
+
+    /**
+     * Get the media state of the other party, as reported by their client.
+     *
+     * Will return null if the call is not connected yet.
+     */
+    public function getRemoteMediaState(): ?MediaState
+    {
+        return $this->getClient()->getCallRemoteMediaState($this->callID);
     }
 
     /**

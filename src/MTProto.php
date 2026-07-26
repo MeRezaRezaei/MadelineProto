@@ -52,6 +52,7 @@ use danog\BetterPrometheus\BetterHistogram;
 use danog\BetterPrometheus\BetterSummary;
 use danog\MadelineProto\Broadcast\Broadcast;
 use danog\MadelineProto\EventHandler\Message;
+use danog\MadelineProto\GroupCall\GroupCallState;
 use danog\MadelineProto\Ipc\Server;
 use danog\MadelineProto\Loop\Generic\PeriodicLoopInternal;
 use danog\MadelineProto\Loop\Update\FeedLoop;
@@ -128,6 +129,7 @@ final class MTProto implements TLCallback, LoggerGetter, SettingsGetter
     use BotAPIFiles;
     use TD;
     use \danog\MadelineProto\VoIP\AuthKeyHandler;
+    use \danog\MadelineProto\GroupCall\Handler;
     use Ads;
     use Button;
     use DialogHandler;
@@ -820,6 +822,7 @@ final class MTProto implements TLCallback, LoggerGetter, SettingsGetter
 
             'calls',
             'callsByPeer',
+            'groupCalls',
             'snitch',
 
             'seqUpdater',
@@ -1250,6 +1253,12 @@ final class MTProto implements TLCallback, LoggerGetter, SettingsGetter
                     $this->cleanupCall($id);
                 } elseif ($call->getCallState() === CallState::REQUESTED && time() - $call->public->date > 5*60) {
                     EventLoop::queue($call->discard(...));
+                }
+            }
+
+            foreach ($this->groupCalls as $id => $groupCall) {
+                if ($groupCall->getCallState() === GroupCallState::LEFT) {
+                    $this->cleanupGroupCall($id);
                 }
             }
         } catch (Throwable $e) {
