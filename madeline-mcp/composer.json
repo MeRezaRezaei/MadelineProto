@@ -1,0 +1,26 @@
+{
+    "name": "danog/madeline-mcp",
+    "description": "MCP (Model Context Protocol) server exposing all Telegram bot & user methods via MadelineProto.",
+    "type": "library",
+    "license": "AGPL-3.0-only",
+    "require": {
+        "php": ">=8.3",
+        "amphp/amp": "^3.1",
+        "amphp/byte-stream": "^2.0",
+        "revolt/event-loop": "^1.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "MadelineMcp\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "MadelineMcp\\Tests\\": "tests/"
+        }
+    },
+    "scripts": {
+        "test": "@php -dzend.assertions=1 ./vendor/bin/phpunit"
+    },
+    "minimum-stability": "stable"
+}

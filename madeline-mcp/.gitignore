@@ -1,0 +1,7 @@
+*.php.lock
+ipcState.php
+lightState.php
+safe.php
+lock
+test-session
+*.madeline

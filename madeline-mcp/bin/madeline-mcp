@@ -1,0 +1,25 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+use MadelineMcp\ApiClient;
+use MadelineMcp\McpServer;
+use MadelineMcp\ToolCatalog;
+
+require __DIR__.'/../../vendor/autoload.php';
+
+spl_autoload_register(static function (string $class): void {
+    $prefix = 'MadelineMcp\\';
+    if (\str_starts_with($class, $prefix)) {
+        $rel = \str_replace('\\', '/', \substr($class, \strlen($prefix)));
+        require __DIR__.'/../src/'.$rel.'.php';
+    }
+});
+
+$session = (string) getenv('SESSION') ?: 'madeline-mcp';
+
+$client = new ApiClient($session);
+$server = new McpServer($client, new ToolCatalog($client));
+
+$server->run();
