@@ -116,6 +116,29 @@ final class McpServer
         }
 
         $result = $this->catalog->call($name, $args);
+
+        // Proactive quota injection: budget state rides along with every
+        // relevant response so the AI can plan ahead instead of reacting to
+        // errors after the fact. Array results gain a _quota key; scalars get
+        // a trailing QUOTA text block. Injection never alters the call itself.
+        $quota = $this->catalog->quotaFor($name, $args);
+        if ($quota !== null) {
+            if (\is_array($result)) {
+                $result['_quota'] = $quota;
+                $text = \json_encode($result, \JSON_PRETTY_PRINT | \JSON_UNESCAPED_SLASHES);
+                return $this->respond($id, [
+                    'content' => [['type' => 'text', 'text' => (string) $text]],
+                ]);
+            }
+            $text = \json_encode($result, \JSON_PRETTY_PRINT | \JSON_UNESCAPED_SLASHES);
+            return $this->respond($id, [
+                'content' => [
+                    ['type' => 'text', 'text' => (string) $text],
+                    ['type' => 'text', 'text' => 'QUOTA ' . \json_encode($quota, JSON_UNESCAPED_SLASHES)],
+                ],
+            ]);
+        }
+
         $text = \json_encode($result, \JSON_PRETTY_PRINT | \JSON_UNESCAPED_SLASHES);
 
         return $this->respond($id, [

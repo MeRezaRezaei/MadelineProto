@@ -6,7 +6,10 @@ namespace MadelineMcp\Tests;
 
 use MadelineMcp\Limits\CategoryMapper;
 use MadelineMcp\Limits\LimitsRepository;
+use MadelineMcp\ApiClient;
 use MadelineMcp\Limits\UsageTracker;
+use MadelineMcp\McpServer;
+use MadelineMcp\ToolCatalog;
 use PHPUnit\Framework\TestCase;
 
 final class LimitsTest extends TestCase
@@ -81,5 +84,52 @@ final class LimitsTest extends TestCase
         // Rate window
         $t->record('message');
         self::assertSame(1, $t->rate('message', 60));
+    }
+
+    public function testQuotaDigestIsCompactAndOffline(): void
+    {
+        $client = new ApiClient('main_account');
+        $cat = new \MadelineMcp\Limits\LimitsCatalog();
+
+        UsageTracker::forSession('digest-test')->recordFloodWait(60, 'send_message', 'message');
+
+        $d = $cat->quotaDigest($client, 'digest-test');
+        self::assertSame(['resolve_daily', 'creation_daily', 'membership_cap'], \array_keys($d['budgets']));
+        self::assertSame(200, $d['budgets']['resolve_daily']['limit']);
+        self::assertNotSame([], $d['cooldowns']);
+        self::assertArrayHasKey('msg_rate_1m', $d);
+        self::assertArrayHasKey('spambot', $d);
+        UsageTracker::forSession('digest-test')->clearCooldowns(null);
+    }
+
+    public function testQuotaInjectedIntoResponsesAndSkippedWhenIrrelevant(): void
+    {
+        putenv('MADELINE_SESSION_DIR=' . \dirname(__DIR__) . '/sessions');
+        $server = new McpServer(new ApiClient('main_account'), new ToolCatalog(new ApiClient('main_account')));
+
+        // Artificial lock -> send_message is guard-blocked AND response carries _quota.
+        UsageTracker::forSession('main_account')->recordFloodWait(45, 'send_message', 'message');
+        $resp = $server->processLine('{"jsonrpc":"2.0","id":9,"method":"tools/call","params":{"name":"send_message","arguments":{"peer":"x","message":"y"}}}');
+        self::assertFalse(isset($resp['error']));
+        $payload = \json_decode($resp['result']['content'][0]['text'], true);
+        self::assertTrue($payload['_error'] ?? false, 'guard should block the call');
+        self::assertArrayHasKey('_quota', $payload);
+        self::assertNotSame([], $payload['_quota']['cooldowns'], 'cooldown must be visible up front');
+        self::assertSame(420, $payload['code']);
+
+        // Unmapped tool with no cooldowns anywhere: no _quota noise.
+        UsageTracker::forSession('main_account')->clearCooldowns(null);
+        $resp2 = $server->processLine('{"jsonrpc":"2.0","id":10,"method":"tools/call","params":{"name":"get_me","arguments":{}}}');
+        $payload2 = \json_decode($resp2['result']['content'][0]['text'], true);
+        self::assertArrayNotHasKey('_quota', $payload2);
+
+        // Tracked tool (resolve_peer) always carries budgets even when clean.
+        $resp3 = $server->processLine('{"jsonrpc":"2.0","id":11,"method":"tools/call","params":{"name":"resolve_peer","arguments":{"peer":"telegram"}}}');
+        $payload3 = \json_decode($resp3['result']['content'][0]['text'], true);
+        if (!isset($payload3['_error'])) {
+            self::assertArrayHasKey('_quota', $payload3);
+            self::assertArrayHasKey('budgets', $payload3['_quota']);
+        }
+        UsageTracker::forSession('main_account')->clearCooldowns(null);
     }
 }

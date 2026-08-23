@@ -62,6 +62,26 @@ final class ToolCatalog
         return (is_string($s) && $s !== '') ? $s : $this->client->defaultSession();
     }
 
+    /**
+     * Quota digest for proactive injection into MCP responses.
+     * Returns null when nothing is relevant (unmapped tool, no cooldowns) so
+     * read-only responses stay clean. Offline-only, never blocks the call.
+     */
+    public function quotaFor(string $name, array $args): ?array
+    {
+        try {
+            $map = CategoryMapper::map($name);
+            $digest = $this->limits->quotaDigest($this->client, $this->resolveSession($args));
+            $relevant = $map !== null || $digest['cooldowns'] !== [];
+            if (!$relevant) {
+                return null;
+            }
+            return $digest;
+        } catch (Throwable) {
+            return null;
+        }
+    }
+
     private function recordUsage(string $name): void
     {
         $map = CategoryMapper::map($name);

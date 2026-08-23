@@ -53,6 +53,47 @@ final class LimitsCatalog
         return \in_array($tool, ['session.get_limits', 'session.get_quota', 'session.check_spam_status', 'session.get_cooldowns'], true);
     }
 
+    /**
+     * Compact budget digest embedded into other tools' MCP responses so the AI
+     * can budget ahead without an explicit session.get_quota round-trip.
+     * Offline-only: state files + cached limits; never touches the API.
+     */
+    public function quotaDigest(ApiClient $client, string $session): array
+    {
+        $repo = new LimitsRepository((string) (\getenv('LIMITS_LANG') ?: 'en'));
+        $tracker = UsageTracker::forSession($session);
+
+        $budgets = [];
+        foreach ([
+            'resolve_daily' => ['cat' => 'resolve', 'limit_id' => 'search.username_resolve_limit'],
+            'creation_daily' => ['cat' => 'creation', 'limit_id' => 'accounts.groups_and_channels_creation'],
+            'membership_cap' => ['cat' => 'membership', 'limit_id' => 'accounts.channels_and_chats_number'],
+        ] as $label => $def) {
+            $lim = $repo->numericLimit($def['limit_id'], false);
+            $used = $tracker->usedToday($def['cat']);
+            $budgets[$label] = [
+                'used' => $used,
+                'limit' => $lim['limit'],
+                'remaining' => $lim['limit'] !== null ? \max(0, $lim['limit'] - $used) : null,
+            ];
+        }
+
+        $cooldowns = [];
+        foreach (['resolve', 'creation', 'message', 'membership', 'folders'] as $cat) {
+            $b = $tracker->blocked($cat);
+            if ($b !== null) {
+                $cooldowns[] = ['category' => $b['category'] ?? $cat, 'scope' => $b['scope'], 'remaining' => $b['remaining']];
+            }
+        }
+
+        return [
+            'budgets' => $budgets,
+            'msg_rate_1m' => $tracker->rate('message', 60),
+            'cooldowns' => $cooldowns,
+            'spambot' => SpamBotChecker::cached($session)['status'] ?? null,
+        ];
+    }
+
     public function dispatch(string $tool, array $args, ApiClient $client): mixed
     {
         try {

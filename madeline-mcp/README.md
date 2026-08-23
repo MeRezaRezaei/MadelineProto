@@ -149,6 +149,12 @@ Automatic protections:
   membership changes and folder operations are counted per-day/per-window and
   reported against community limits scaled by premium status.
 
+**Proactive quota injection** — every response of a budget-tracked tool (and
+any call while a cooldown exists) carries a compact `_quota` block:
+per-day budgets with `used/limit/remaining`, 1-minute message rate, active
+cooldowns and cached @SpamBot standing. The AI sees budget state *before*
+acting instead of discovering it from errors after the fact.
+
 State lives in `cache/usage-<session>.json`; limit cache in
 `cache/telegram-limits-en.json`. Override locations with
 `MADELINE_CACHE_DIR`, language with `LIMITS_LANG`.

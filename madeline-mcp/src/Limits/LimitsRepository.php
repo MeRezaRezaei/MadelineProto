@@ -22,6 +22,9 @@ final class LimitsRepository
     private const RAW_STRUCTURE = 'https://raw.githubusercontent.com/tginfo/Telegram-Limits/master/data/structure.json';
     private const RAW_LOCALIZATION = 'https://raw.githubusercontent.com/tginfo/Telegram-Limits/master/localization/%s/data.json';
 
+    /** @var array<string,array> per-lang in-process memo so hot paths skip disk/network */
+    private static array $memo = [];
+
     private string $lang;
 
     public function __construct(string $lang = 'en')
@@ -43,6 +46,14 @@ final class LimitsRepository
      * @return array{meta:array<string,mixed>, categories:list<array<string,mixed>>}
      */
     public function snapshot(bool $refresh = false): array
+    {
+        if (!$refresh && isset(self::$memo[$this->lang])) {
+            return self::$memo[$this->lang];
+        }
+        return self::$memo[$this->lang] = $this->load($refresh);
+    }
+
+    private function load(bool $refresh): array
     {
         if (!$refresh) {
             $fresh = $this->readCache(false);
