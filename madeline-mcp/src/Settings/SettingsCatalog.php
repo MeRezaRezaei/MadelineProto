@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace MadelineMcp\Settings;
 
 use danog\MadelineProto\API;
+use MadelineMcp\ApiClient;
 use ReflectionClass;
 use ReflectionMethod;
 use ReflectionParameter;

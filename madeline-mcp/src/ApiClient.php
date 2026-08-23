@@ -37,10 +37,20 @@ final class ApiClient
     private string $defaultSession;
     private string $sessionsDir;
 
+    /**
+     * Absolute path to the sessions directory. cwd-independent: derived from
+     * MADELINE_SESSION_DIR, else the repo-root/sessions next to this file.
+     */
+    public static function sessionDir(): string
+    {
+        $env = \getenv('MADELINE_SESSION_DIR');
+        return ($env !== false && $env !== '') ? \rtrim($env, '/') : \dirname(__DIR__, 2) . '/sessions';
+    }
+
     public function __construct(string $session = 'madeline-mcp')
     {
         $this->defaultSession = $session;
-        $this->sessionsDir = \getcwd() . '/sessions';
+        $this->sessionsDir = self::sessionDir();
 
         if (!\is_dir($this->sessionsDir)) {
             @\mkdir($this->sessionsDir, 0755, true);
@@ -204,7 +214,7 @@ final class ApiClient
         $path = $this->sessionsDir . '/' . $sessionName;
         if (\is_dir($path)) {
             // Session database exists: load api keys from it (no external file).
-            $api = new API('sessions/' . $sessionName);
+            $api = new API($this->sessionsDir . '/' . $sessionName);
             $this->apis[$sessionName] = $api;
             return $api;
         }
