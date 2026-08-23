@@ -9,6 +9,7 @@ use danog\MadelineProto\Settings;
 use danog\MadelineProto\Settings\AppInfo;
 use danog\MadelineProto\Settings\Logger;
 use danog\MadelineProto\TL\TL;
+use MadelineMcp\Settings\SettingsCatalog;
 use Throwable;
 
 /**
@@ -23,6 +24,7 @@ final class ToolCatalog
 
     public function __construct(
         private readonly ApiClient $client,
+        private readonly SettingsCatalog $settings = new SettingsCatalog(),
     ) {
     }
 
@@ -66,7 +68,7 @@ final class ToolCatalog
     /** The full list of tools advertised to the client. */
     public function all(): array
     {
-        return [
+        return array_merge($this->settings->tools(), [
             [
                 'name' => 'list_accounts',
                 'description' => 'List all configured Telegram accounts/sessions and their login state.',
@@ -223,11 +225,15 @@ final class ToolCatalog
                     ],
                 ], ['method']),
             ],
-        ];
+        ]);
     }
 
     public function call(string $name, array $args): mixed
     {
+        if ($this->settings->has($name)) {
+            $session = $args['session_name'] ?? null;
+            return $this->twrap(fn () => $this->settings->dispatch($name, $args, $this->api($session)));
+        }
         return match ($name) {
             'list_accounts' => $this->client->listAccounts(),
             'add_account' => $this->addAccount($args),

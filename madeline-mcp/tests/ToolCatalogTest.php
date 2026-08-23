@@ -20,26 +20,24 @@ final class ToolCatalogTest extends TestCase
     {
         $tools = $this->catalog()->all();
         $names = \array_column($tools, 'name');
-        self::assertSame([
-            'list_accounts',
-            'add_account',
-            'start_login',
-            'submit_login_code',
-            'submit_password',
-            'get_login_state',
-            'get_me',
-            'list_dialogs',
-            'send_message',
-            'send_media',
-            'download_media',
-            'delete_messages',
-            'read_history',
-            'resolve_peer',
-            'search_messages',
-            'get_full_chat_info',
-            'list_methods',
-            'call_method',
-        ], $names);
+        // The 18 ergonomic tools must still be present.
+        foreach ([
+            'list_accounts','add_account','start_login','submit_login_code',
+            'submit_password','get_login_state','get_me','list_dialogs',
+            'send_message','send_media','download_media','delete_messages',
+            'read_history','resolve_peer','search_messages','get_full_chat_info',
+            'list_methods','call_method',
+        ] as $core) {
+            self::assertContains($core, $names, "missing core tool $core");
+        }
+        // Settings layer must mirror Telegram (DDD: namespace = bounded context).
+        self::assertContains('account.updateProfile', $names);
+        self::assertContains('account.setPrivacy', $names);
+        self::assertContains('messages.getPeerSettings', $names);
+        self::assertContains('auth.logOut', $names);
+        self::assertContains('account.deleteAccount', $names);
+        self::assertContains('session.remove_account', $names);
+        self::assertGreaterThan(18, \count($names));
     }
 
     public function testEveryToolHasSchema(): void
