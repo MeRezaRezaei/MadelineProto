@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace MadelineMcp\Tests;
 
+use MadelineMcp\Bots\BotInvoker;
 use MadelineMcp\Bots\BotScanner;
 use PHPUnit\Framework\TestCase;
 
@@ -64,5 +65,30 @@ final class BotScannerTest extends TestCase
         self::assertSame("raw-cb-\x01", BotScanner::callbackDataFor('Vote A', $map));
         self::assertNull(BotScanner::callbackDataFor('Docs', $map));
         self::assertSame(13, BotScanner::msgIdFor('Vote A', $map));
+    }
+
+    public function testPickReplyDetectsEditsNotOnlyNewMessages(): void
+    {
+        $baseline = ['id' => 50, 'edit_date' => 100, 'text' => 'Choose a bot:'];
+        $msgs = [
+            ['_' => 'message', 'id' => 50, 'out' => false, 'date' => 90, 'edit_date' => 100, 'message' => 'Choose a bot:'],
+        ];
+        // Nothing changed yet.
+        self::assertNull(BotInvoker::pickReply($msgs, $baseline));
+
+        // Pagination edits the SAME message -> must be detected.
+        $edited = [['_' => 'message', 'id' => 50, 'out' => false, 'date' => 90, 'edit_date' => 200, 'message' => 'Choose a bot from the list below (page 2)']];
+        self::assertSame(200, BotInvoker::pickReply($edited, $baseline)['edit_date']);
+
+        // Same id, no edit_date but text changed -> also detected.
+        $silentEdit = [['_' => 'message', 'id' => 50, 'out' => false, 'date' => 90, 'edit_date' => 100, 'message' => 'page 2 content']];
+        self::assertNotNull(BotInvoker::pickReply($silentEdit, $baseline));
+
+        // Brand-new message wins.
+        $fresh = [['_'=>'message','id'=>51,'out'=>false,'date'=>95,'message'=>'hi']];
+        self::assertSame(51, BotInvoker::pickReply($fresh, $baseline)['id']);
+
+        // Outgoing-only history: nothing.
+        self::assertNull(BotInvoker::pickReply([['_'=>'message','id'=>52,'out'=>true,'date'=>96,'message'=>'/mybots']], $baseline));
     }
 }

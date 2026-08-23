@@ -143,8 +143,13 @@ final class BotCatalog
 
         $map = BotScanner::fromHistory((array) $history, $username, $title, $about);
         $map['cached'] = false;
-        @\mkdir(\dirname($file), 0755, true);
-        @\file_put_contents($file, \json_encode($map, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+        // NOTE: MadelineProto's global error handler throws on suppressed
+        // warnings too, so guard before touching the filesystem.
+        $dir = \dirname($file);
+        if (!\is_dir($dir)) {
+            \mkdir($dir, 0755, true);
+        }
+        \file_put_contents($file, \json_encode($map, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
         return $map;
     }
 
@@ -174,7 +179,21 @@ final class BotCatalog
 
         $api = $client->api($session);
         $wait = \min(30, \max(1, (int) ($args['wait_seconds'] ?? 6)));
-        return BotInvoker::invoke($api, $peer, $action, $map, $wait);
+        $res = BotInvoker::invoke($api, $peer, $action, $map, $wait);
+
+        // Chain-friendly: fold any freshly seen inline buttons back into the map.
+        if (\is_array($res['new_inline_buttons'] ?? null) && $res['new_inline_buttons'] !== [] && isset($res['reply_msg_id'])) {
+            foreach ($res['new_inline_buttons'] as $txt => $meta) {
+                if (isset($res['new_buttons_full'][$txt])) {
+                    $map['inline_buttons'][$txt] = $res['new_buttons_full'][$txt];
+                }
+            }
+            if (!\is_dir(\dirname($file))) {
+                \mkdir(\dirname($file), 0755, true);
+            }
+            \file_put_contents($file, \json_encode($map, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+        }
+        return $res;
     }
 
     /** Stable cache key for a peer (prefer resolved username). */
