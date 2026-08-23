@@ -1,9 +1,9 @@
 [
     {
-        "session_name": "main_account",
-        "api_id": 1821270,
+        "session_name": "example_account",
+        "api_id": 1234567,
         "state": "LOGGED_IN",
         "logged_in": true,
-        "username": "merezarezaei"
+        "username": "testuser"
     }
 ]
