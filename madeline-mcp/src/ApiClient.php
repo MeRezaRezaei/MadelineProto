@@ -65,12 +65,24 @@ final class ApiClient
 
     public function __construct(string $session = 'madeline-mcp')
     {
-        $this->defaultSession = $session;
         $this->sessionsDir = self::sessionDir();
 
         if (!\is_dir($this->sessionsDir)) {
             @\mkdir($this->sessionsDir, 0755, true);
         }
+
+        // Auto-detect: if the requested default session has no stored session,
+        // fall back to the first existing one so single-account setups work
+        // without passing session_name everywhere.
+        if ($session === 'madeline-mcp' && !\is_dir($this->sessionsDir . '/madeline-mcp')) {
+            foreach (\scandir($this->sessionsDir) ?: [] as $entry) {
+                if ($entry !== '.' && $entry !== '..' && \is_dir($this->sessionsDir . '/' . $entry)) {
+                    $session = $entry;
+                    break;
+                }
+            }
+        }
+        $this->defaultSession = $session;
 
         // Backward-compatible environment variables for the default session.
         if (!isset($this->configs[$this->defaultSession])) {
