@@ -149,6 +149,15 @@ Automatic protections:
   membership changes and folder operations are counted per-day/per-window and
   reported against community limits scaled by premium status.
 
+**Response sanitization** — every tool result is shaped for an AI consumer
+before it leaves the server: compact JSON (no pretty-print), `null`s and TL
+bitmask/hash internals (`flags`, `access_hash`, thumbnails…) pruned, base64
+blobs replaced by `[blob NB]` markers, strings capped at 2000 chars with a
+`…[+N ch]` marker. Hot tools get curated projections: `resolve_peer` returns
+only id/type/title/username/verified; `bot.invoke` returns ONE canonical
+`buttons` list (`text` + `type`, payload kept server-side in the interaction
+map). Set `MADELINE_MCP_RAW=1` to disable.
+
 **Proactive quota injection** — every response of a budget-tracked tool (and
 any call while a cooldown exists) carries a compact `_quota` block:
 per-day budgets with `used/limit/remaining`, 1-minute message rate, active

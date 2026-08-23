@@ -17,8 +17,8 @@ final class BotInvoker
 {
     /**
      * @return array{action:string, kind:string, sent:bool, response:string,
-     *              new_inline_buttons:array, new_buttons_full:array,
-     *              reply_msg_id:int|null, callback_answer:array|null, wait_seconds:int}
+     *              buttons:array<string,array{type:string,data?:string,msg_id?:int,url?:string}>,
+     *              reply_msg_id:int|null, callback_answer:array|null}
      */
     public static function invoke(API $api, string $peer, string $action, array $map, int $waitSeconds = 6): array
     {
@@ -61,7 +61,7 @@ final class BotInvoker
 
         if ($callbackAnswer !== null && $callbackAnswer['message'] !== '') {
             // Pure alert/toast answer, no message follows.
-            return self::ok($action, $kind, $sent, '', [], null, $callbackAnswer, $waitSeconds);
+            return self::ok($action, $kind, $sent, '', [], null, $callbackAnswer);
         }
 
         // Wait for a NEW incoming message OR an EDIT of the baseline one.
@@ -98,11 +98,9 @@ final class BotInvoker
             $kind,
             $sent,
             \mb_substr($text, 0, 4000),
-            \array_map(fn ($m) => ['type' => $m['type']], $fullButtons),
+            $fullButtons,
             $reply === null ? null : (int) ($reply['id'] ?? 0),
             $callbackAnswer,
-            $waitSeconds,
-            $fullButtons,
         );
     }
 
@@ -159,19 +157,18 @@ final class BotInvoker
         return null;
     }
 
-    private static function ok(string $action, string $kind, bool $sent, string $response, array $buttonsPreview, ?int $replyMsgId, ?array $cbAnswer, int $waitSeconds, array $fullButtons = []): array
+    private static function ok(string $action, string $kind, bool $sent, string $response, array $buttons, ?int $replyMsgId, ?array $cbAnswer): array
     {
-        return [
+        $out = [
             'action' => $action,
             'kind' => $kind,
             'sent' => $sent,
             'response' => $response,
-            'new_inline_buttons' => $buttonsPreview ?: new \stdClass(),
-            'new_buttons_full' => $fullButtons,
+            'buttons' => $buttons ?: new \stdClass(),
             'reply_msg_id' => $replyMsgId,
             'callback_answer' => $cbAnswer,
-            'wait_seconds' => $waitSeconds,
         ];
+        return $out;
     }
 
     private static function fail(string $action, string $kind, string $why): array

@@ -117,6 +117,12 @@ final class McpServer
 
         $result = $this->catalog->call($name, $args);
 
+        // AI-facing shaping unless explicitly disabled.
+        if (\getenv('MADELINE_MCP_RAW') !== '1') {
+            $result = ResponseSanitizer::project($name, $result);
+            $result = ResponseSanitizer::clean($result);
+        }
+
         // Proactive quota injection: budget state rides along with every
         // relevant response so the AI can plan ahead instead of reacting to
         // errors after the fact. Array results gain a _quota key; scalars get
@@ -125,12 +131,12 @@ final class McpServer
         if ($quota !== null) {
             if (\is_array($result)) {
                 $result['_quota'] = $quota;
-                $text = \json_encode($result, \JSON_PRETTY_PRINT | \JSON_UNESCAPED_SLASHES);
+                $text = \json_encode($result, \JSON_UNESCAPED_SLASHES | \JSON_UNESCAPED_UNICODE);
                 return $this->respond($id, [
                     'content' => [['type' => 'text', 'text' => (string) $text]],
                 ]);
             }
-            $text = \json_encode($result, \JSON_PRETTY_PRINT | \JSON_UNESCAPED_SLASHES);
+            $text = \json_encode($result, \JSON_UNESCAPED_SLASHES | \JSON_UNESCAPED_UNICODE);
             return $this->respond($id, [
                 'content' => [
                     ['type' => 'text', 'text' => (string) $text],
@@ -139,7 +145,7 @@ final class McpServer
             ]);
         }
 
-        $text = \json_encode($result, \JSON_PRETTY_PRINT | \JSON_UNESCAPED_SLASHES);
+        $text = \json_encode($result, \JSON_UNESCAPED_SLASHES | \JSON_UNESCAPED_UNICODE);
 
         return $this->respond($id, [
             'content' => [['type' => 'text', 'text' => (string) $text]],

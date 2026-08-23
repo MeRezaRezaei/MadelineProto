@@ -182,10 +182,10 @@ final class BotCatalog
         $res = BotInvoker::invoke($api, $peer, $action, $map, $wait);
 
         // Chain-friendly: fold any freshly seen inline buttons back into the map.
-        if (\is_array($res['new_inline_buttons'] ?? null) && $res['new_inline_buttons'] !== [] && isset($res['reply_msg_id'])) {
-            foreach ($res['new_inline_buttons'] as $txt => $meta) {
-                if (isset($res['new_buttons_full'][$txt])) {
-                    $map['inline_buttons'][$txt] = $res['new_buttons_full'][$txt];
+        if (\is_array($res['buttons'] ?? null) && $res['buttons'] !== []) {
+            foreach ($res['buttons'] as $txt => $meta) {
+                if (isset($meta['data']) || isset($meta['url'])) {
+                    $map['inline_buttons'][$txt] = $meta;
                 }
             }
             if (!\is_dir(\dirname($file))) {
