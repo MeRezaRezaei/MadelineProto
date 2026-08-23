@@ -255,7 +255,7 @@ final class ToolCatalog
     {
         return $this->twrap(function () use ($args) {
             $this->client->addAccountConfig($args['session_name'], $args['api_id'], $args['api_hash']);
-            return ['status' => 'Account added to registry. You can now start_login.'];
+            return ['status' => 'Account added and persisted to the MadelineProto session database. You can now start_login.'];
         });
     }
 
@@ -301,10 +301,19 @@ final class ToolCatalog
     private function getLoginState(array $args): mixed
     {
         return $this->twrap(function () use ($args): array {
-            $me = $this->api($args['session_name'] ?? null)->getSelf();
-            $loggedIn = \is_array($me);
+            $api = $this->api($args['session_name'] ?? null);
+            $auth = $api->getAuthorization();
+            $me = $api->getSelf();
+            $loggedIn = \is_array($me) && $auth === API::LOGGED_IN;
             return [
-                'state' => $loggedIn ? 'LOGGED_IN' : 'NOT_LOGGED_IN',
+                'state' => match ($auth) {
+                    API::LOGGED_IN => 'LOGGED_IN',
+                    API::WAITING_CODE => 'WAITING_CODE',
+                    API::WAITING_PASSWORD => 'WAITING_PASSWORD',
+                    API::WAITING_SIGNUP => 'WAITING_SIGNUP',
+                    API::LOGGED_OUT => 'LOGGED_OUT',
+                    default => 'NOT_LOGGED_IN',
+                },
                 'logged_in' => $loggedIn,
             ];
         });

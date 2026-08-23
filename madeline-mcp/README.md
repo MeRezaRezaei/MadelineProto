@@ -48,10 +48,16 @@ can launch it directly:
 
 ## Multi-Account & Dynamic Login
 
-The MCP server fully supports managing multiple sessions simultaneously.
+The MCP server fully supports managing multiple sessions simultaneously. **No
+external JSON file is used to track accounts or API keys** — everything is
+stored inside MadelineProto's own session databases. The list of accounts is
+simply the set of session directories under `sessions/`, and each account's
+`api_id` / `api_hash` are persisted into that account's MadelineProto session
+database (read back via `getSettings()`). This means accounts survive server
+restarts with zero side-car files.
 
-1. **`list_accounts`** – View all registered sessions.
-2. **`add_account`** – Send `session_name`, `api_id`, and `api_hash` to provision an account without touching environment variables.
+1. **`list_accounts`** – List every account from the on-disk MadelineProto session databases, including `api_id` and current login state.
+2. **`add_account`** – Send `session_name`, `api_id`, and `api_hash`; they are written straight into that account's MadelineProto session database (no external file).
 3. **`start_login`** – Trigger the login sequence using a `bot_token` or `phone`.
 4. **`submit_login_code`** – Submit the SMS/Telegram code to finalize login.
 
