@@ -1,0 +1,1757 @@
+{
+ "meta": {
+  "source": "github:tginfo/Telegram-Limits (CC BY 4.0)",
+  "lang": "en",
+  "urls": {
+   "structure": "https://raw.githubusercontent.com/tginfo/Telegram-Limits/master/data/structure.json",
+   "localization": "https://raw.githubusercontent.com/tginfo/Telegram-Limits/master/localization/en/data.json"
+  },
+  "generated_at": 1787489203
+ },
+ "categories": [
+  {
+   "id": "accounts",
+   "name": "Accounts",
+   "items": [
+    {
+     "id": "username",
+     "name": "Username",
+     "hint": "(e.g. @cameraman)",
+     "text": "5 to 32 characters, starting from 4 characters for NFT usernames",
+     "premium": null
+    },
+    {
+     "id": "bio",
+     "name": "Bio",
+     "hint": "",
+     "text": "up to 70 characters",
+     "premium": "up to 140 characters"
+    },
+    {
+     "id": "name_length",
+     "name": "First Name length",
+     "hint": "",
+     "text": "from 1 to 64 characters",
+     "premium": null
+    },
+    {
+     "id": "last_name_length",
+     "name": "Last Name length",
+     "hint": "",
+     "text": "from 0 to 64 characters",
+     "premium": null
+    },
+    {
+     "id": "self_destruction",
+     "name": "Self-destruction period",
+     "hint": "if no activity",
+     "text": "1, 3, 6, 12, 18, 24 months (18 months by default)",
+     "premium": null
+    },
+    {
+     "id": "spam_ban",
+     "name": "Spam ban",
+     "hint": "",
+     "text": "from 1 day up to forever",
+     "premium": "from 1 second up to permanent"
+    },
+    {
+     "id": "channels_and_chats_number",
+     "name": "Channels and supergroups number",
+     "hint": "you can be member of (combined)",
+     "text": "up to 500 (including ones you own)",
+     "premium": "up to 1000 (including ones you own)"
+    },
+    {
+     "id": "gifs_number",
+     "name": "Saved GIFs number",
+     "hint": "",
+     "text": "up to 200",
+     "premium": "up to 400"
+    },
+    {
+     "id": "video_length",
+     "name": "Video avatar duration",
+     "hint": "",
+     "text": "from 1 to 10 seconds",
+     "premium": null
+    },
+    {
+     "id": "groups_and_channels_creation",
+     "name": "Group and channel creation",
+     "hint": "",
+     "text": "up to 50 in a day",
+     "premium": null
+    },
+    {
+     "id": "accounts_number",
+     "name": "Accounts number",
+     "hint": "(official clients)",
+     "text": "up to 3",
+     "premium": "up to 4-6 (depends on app)"
+    },
+    {
+     "id": "visible_messages",
+     "name": "Visible messages number",
+     "hint": "(shared limit between private chats, bots and legacy \"basic\" groups)",
+     "text": "unlimited; before 2018 year - up to 1,000,000 visible messages: see https://twitter.com/telegram/status/1060910769410371584",
+     "premium": null
+    },
+    {
+     "id": "sticker_packs_per_account",
+     "name": "Sticker packs per account",
+     "hint": "",
+     "text": "up to 200",
+     "premium": null
+    },
+    {
+     "id": "emoji_packs_per_account",
+     "name": "Emoji packs per account",
+     "hint": "",
+     "text": "up to 200",
+     "premium": null
+    },
+    {
+     "id": "username_ownership_for_auction",
+     "name": "Minimum username ownership for auction",
+     "hint": "",
+     "text": "14 days",
+     "premium": null
+    },
+    {
+     "id": "maximum_contact_note_length",
+     "name": "Maximum contact note length",
+     "hint": "",
+     "text": "128 symbols",
+     "premium": null
+    },
+    {
+     "id": "maximum_passkeys_number",
+     "name": "Maximum passkeys number",
+     "hint": "linked to a Telegram account",
+     "text": "up to 5 passkeys",
+     "premium": null
+    },
+    {
+     "id": "session_duration",
+     "name": "Session duration",
+     "hint": "",
+     "text": "1 week, 1 month, 3 months, 6 months, or 12 months",
+     "premium": null
+    },
+    {
+     "id": "notification_sounds_duration",
+     "name": "Notification sounds duration",
+     "hint": "(custom files)",
+     "text": "from 1 to 5 seconds",
+     "premium": null
+    },
+    {
+     "id": "number_saved_ringtones",
+     "name": "Number of saved ringtones",
+     "hint": "",
+     "text": "up to 100",
+     "premium": null
+    },
+    {
+     "id": "welcome_card_title_length",
+     "name": "Welcome card title length",
+     "hint": "",
+     "text": "",
+     "premium": "up to 32 characters"
+    },
+    {
+     "id": "welcome_card_text_length",
+     "name": "Welcome card text length",
+     "hint": "",
+     "text": "",
+     "premium": "up to 70 characters"
+    },
+    {
+     "id": "number_business_chat_links",
+     "name": "Number of business chat links",
+     "hint": "with predefined message text",
+     "text": "",
+     "premium": "up to 100 links"
+    },
+    {
+     "id": "birthday_setchange",
+     "name": "Birthday set/change",
+     "hint": "",
+     "text": "3 per week",
+     "premium": null
+    }
+   ]
+  },
+  {
+   "id": "chats",
+   "name": "Chats and groups",
+   "items": [
+    {
+     "id": "participants_number",
+     "name": "Participants",
+     "hint": "(limit can be raised)",
+     "text": "up to 200,000 but unlimited in Broadcast Groups",
+     "premium": null
+    },
+    {
+     "id": "admins_number",
+     "name": "Number of admins",
+     "hint": "in groups",
+     "text": "up to 50",
+     "premium": null
+    },
+    {
+     "id": "bots_amount",
+     "name": "Number of bots",
+     "hint": "in groups",
+     "text": "up to 20",
+     "premium": null
+    },
+    {
+     "id": "pinned_number",
+     "name": "Pinned chats in main list",
+     "hint": "",
+     "text": "up to 5 chats or channels + 5 secret chats",
+     "premium": "up to 10 chats or channels"
+    },
+    {
+     "id": "group_name",
+     "name": "Group name and description",
+     "hint": "",
+     "text": "up to 255 characters",
+     "premium": null
+    },
+    {
+     "id": "editing",
+     "name": "Message editing",
+     "hint": "",
+     "text": "in 48 hours after sending; unlimited in Saved and for admins with pinning rights",
+     "premium": null
+    },
+    {
+     "id": "media_self_destruction",
+     "name": "Photo and video self-destruction",
+     "hint": "",
+     "text": "1 to 60 seconds",
+     "premium": null
+    },
+    {
+     "id": "recent_actions",
+     "name": "Recent actions",
+     "hint": "(subscriptions, posts, etc.)",
+     "text": "last two days",
+     "premium": null
+    },
+    {
+     "id": "mentions_amount",
+     "name": "Mentions number",
+     "hint": "in a single message",
+     "text": "up to 50, only first 5 from list will receive notification",
+     "premium": null
+    },
+    {
+     "id": "visible_messages",
+     "name": "Visible messages number",
+     "hint": "in group",
+     "text": "1,000,000 last messages",
+     "premium": null
+    },
+    {
+     "id": "pinned_messages_number",
+     "name": "Pinned messages number",
+     "hint": "",
+     "text": "unlimited",
+     "premium": null
+    },
+    {
+     "id": "participants_to_see_stats",
+     "name": "Number of members to see statistics",
+     "hint": "",
+     "text": "at least 500",
+     "premium": null
+    },
+    {
+     "id": "username_reservation",
+     "name": "Username change reservation",
+     "hint": "(time before username will be available for everyone, not just the original owner)",
+     "text": "about 15-30 minutes",
+     "premium": null
+    },
+    {
+     "id": "participants_for_group_stickers",
+     "name": "Group-promoted stickers",
+     "hint": "",
+     "text": "groups with 100+ participants",
+     "premium": null
+    },
+    {
+     "id": "chat_role_length",
+     "name": "Admin/user tag length",
+     "hint": "",
+     "text": "up to 16 characters",
+     "premium": null
+    },
+    {
+     "id": "broadcast_group_access",
+     "name": "Converting a supergroup to broadcast group",
+     "hint": "",
+     "text": "for chats with 199,000+ members",
+     "premium": null
+    },
+    {
+     "id": "read_receipts_lifetime",
+     "name": "Read receipts lifetime",
+     "hint": "",
+     "text": "up to 7 days since message was sent",
+     "premium": null
+    },
+    {
+     "id": "read_receipts_availability",
+     "name": "Read receipts availability",
+     "hint": "",
+     "text": "for chats with 100 members or less, the list of users is only available for the user who sent the message",
+     "premium": null
+    },
+    {
+     "id": "visible_list_members",
+     "name": "Visible list of members",
+     "hint": "in big chats",
+     "text": "up to 10,000 users",
+     "premium": null
+    },
+    {
+     "id": "boosts_needed_reach_level",
+     "name": "Boosts needed to reach a level",
+     "hint": "",
+     "text": "see https://boosts.tginfo.me calculator",
+     "premium": null
+    },
+    {
+     "id": "hide_participants_setting_availability",
+     "name": "Hide participants setting availability",
+     "hint": "",
+     "text": "the chat must have at least 100 members",
+     "premium": null
+    },
+    {
+     "id": "number_manually_selected_reactions",
+     "name": "Number of manually selected reactions",
+     "hint": "when \"Some reactions\" option is used",
+     "text": "up to 100",
+     "premium": null
+    },
+    {
+     "id": "number_members_aggressive_antispam_availability",
+     "name": "Number of members for Aggressive Anti-Spam availability",
+     "hint": "",
+     "text": "at least 200 members",
+     "premium": null
+    },
+    {
+     "id": "events_timetolive_recent_actions",
+     "name": "Events time-to-live in Recent Actions",
+     "hint": "",
+     "text": "48 hours",
+     "premium": null
+    }
+   ]
+  },
+  {
+   "id": "topic",
+   "name": "Forum",
+   "items": [
+    {
+     "id": "topics_per_group",
+     "name": "Topics per group",
+     "hint": "",
+     "text": "up to 1,000,000",
+     "premium": null
+    },
+    {
+     "id": "topic_title_length",
+     "name": "Topic title length",
+     "hint": "",
+     "text": "up to 128 characters",
+     "premium": null
+    },
+    {
+     "id": "pinned_topics",
+     "name": "Pinned topics",
+     "hint": "",
+     "text": "up to 5",
+     "premium": null
+    }
+   ]
+  },
+  {
+   "id": "voice_chats",
+   "name": "Voice & Video Chats",
+   "items": [
+    {
+     "id": "voice_chat_participants",
+     "name": "Audio Chat listeners",
+     "hint": "",
+     "text": "unlimited",
+     "premium": null
+    },
+    {
+     "id": "video_chat_broadcast",
+     "name": "Broadcasting video",
+     "hint": "(camera, screen casting)",
+     "text": "up to 1,000 broadcasting users simultaneously",
+     "premium": null
+    },
+    {
+     "id": "video_chat_viewers",
+     "name": "Video broadcast viewers",
+     "hint": "",
+     "text": "officially it's stated to be unlimited, in practice, the stream becomes unstable at about 2,000 simultaneous viewers",
+     "premium": null
+    },
+    {
+     "id": "voice_chat_title_length",
+     "name": "Voice chat title length",
+     "hint": "",
+     "text": "up to 40 characters",
+     "premium": null
+    },
+    {
+     "id": "voice_chat_schedule",
+     "name": "Scheduled chats",
+     "hint": "",
+     "text": "up to 7 days ahead",
+     "premium": null
+    },
+    {
+     "id": "comment_length",
+     "name": "Comment length",
+     "hint": "Maximum length of message which can be sent to video/voice chat",
+     "text": "128",
+     "premium": null
+    },
+    {
+     "id": "comment_lifetime",
+     "name": "Comment lifetime",
+     "hint": "Lifetime of comment, if not pinned",
+     "text": "10 seconds",
+     "premium": null
+    },
+    {
+     "id": "number_participants_endtoend_encrypted_calls",
+     "name": "Number of participants in End-to-End encrypted private link calls",
+     "hint": "",
+     "text": "up to 200 participants",
+     "premium": null
+    },
+    {
+     "id": "paid_message_price",
+     "name": "Paid stream comment message price",
+     "hint": "",
+     "text": "up to 10,000 stars",
+     "premium": null
+    },
+    {
+     "id": "paid_message_pin_duration",
+     "name": "Stream comment pin duration",
+     "hint": "",
+     "text": "free: no pinning. 10 stars: 1 minute. 50 stars: 2 minutes. 100 stars: 5 minutes. 250 stars: 10 minutes. 500 stars: 15 minutes. 2,000 stars: 30 minutes. 10,000 stars: 1 hour",
+     "premium": null
+    },
+    {
+     "id": "paid_message_length",
+     "name": "Stream comment length",
+     "hint": "",
+     "text": "free: 30 characters. 10 stars: 60 characters. 50 stars: 80 characters. 100 stars: 110 characters. 250 stars: 150 characters. 500 stars: 200 characters. 2,000 stars: 280 characters. 10,000 stars: 400 characters",
+     "premium": null
+    },
+    {
+     "id": "paid_message_emoji_number",
+     "name": "Stream comment emoji number",
+     "hint": "",
+     "text": "free: no emojis. 10 stars: 1 emoji. 50 stars: 2 emojis. 100 stars: 3 emojis. 250 stars: 4 emojis. 500 stars: 7 emojis. 2,000 stars: 10 emojis. 10,000 stars: 20 emojis",
+     "premium": null
+    }
+   ]
+  },
+  {
+   "id": "channels",
+   "name": "Channels",
+   "items": [
+    {
+     "id": "public_usernames",
+     "name": "Public usernames number",
+     "hint": "for a single account",
+     "text": "up to 10 (including groups)",
+     "premium": "up to 20 (including groups)"
+    },
+    {
+     "id": "username_length",
+     "name": "Length of @username",
+     "hint": "",
+     "text": "5 to 32 characters",
+     "premium": null
+    },
+    {
+     "id": "channel_name",
+     "name": "Channel name and description",
+     "hint": "",
+     "text": "up to 255 characters",
+     "premium": null
+    },
+    {
+     "id": "channel_admins",
+     "name": "Channel admins number",
+     "hint": "(including bots; you can add a bot to your channel only by making it an admin)",
+     "text": "up to 50 accounts",
+     "premium": null
+    },
+    {
+     "id": "editing",
+     "name": "Posts editing",
+     "hint": "",
+     "text": "unlimited (if the channel has a discussion group linked, posts older than 2 weeks won't be updated in the chat)",
+     "premium": null
+    },
+    {
+     "id": "subscribers",
+     "name": "Channel subscribers number",
+     "hint": "",
+     "text": "unlimited",
+     "premium": null
+    },
+    {
+     "id": "visible_participants",
+     "name": "Visible subscribers",
+     "hint": "for channel admin",
+     "text": "200 people",
+     "premium": null
+    },
+    {
+     "id": "channel_deletion",
+     "name": "Channel deletion",
+     "hint": "",
+     "text": "channels with more than 1K subscribers can be deleted only from a session that is a few days old and only if the current account had cloud password activated for a few days",
+     "premium": null
+    },
+    {
+     "id": "private_channel_access",
+     "name": "Viewing private channels without joining",
+     "hint": "(for channels with 200+ subscribers)",
+     "text": "up to 5 minutes once a day",
+     "premium": null
+    },
+    {
+     "id": "invintations",
+     "name": "Inviting users",
+     "hint": "",
+     "text": "up to 200 people",
+     "premium": null
+    },
+    {
+     "id": "followers_to_see_stats",
+     "name": "Number of subscribers to see statistics",
+     "hint": "",
+     "text": "at least 50",
+     "premium": null
+    },
+    {
+     "id": "number_subscribers_see_story_statistics",
+     "name": "Number of subscribers to see story statistics",
+     "hint": "",
+     "text": "at least 1",
+     "premium": null
+    },
+    {
+     "id": "username_reservation",
+     "name": "Username change reservation",
+     "hint": "(time before username will be available for everyone, not just the original owner)",
+     "text": "about 15-30 minutes",
+     "premium": null
+    },
+    {
+     "id": "boosts_needed_reach_level",
+     "name": "Boosts needed to reach a level",
+     "hint": "",
+     "text": "see https://boosts.tginfo.me calculator",
+     "premium": null
+    },
+    {
+     "id": "similar_channels_eligibility",
+     "name": "Similar Channels eligibility",
+     "hint": "",
+     "text": "at least 300 subscribers; depends on channel content",
+     "premium": null
+    },
+    {
+     "id": "events_timetolive_recent_actions",
+     "name": "Events time-to-live in Recent Actions",
+     "hint": "",
+     "text": "48 hours",
+     "premium": null
+    }
+   ]
+  },
+  {
+   "id": "messages",
+   "name": "Messages",
+   "items": [
+    {
+     "id": "single_message_length",
+     "name": "One message length",
+     "hint": "",
+     "text": "up to 4,096 characters",
+     "premium": "up to 8,192 characters"
+    },
+    {
+     "id": "media_descriptions",
+     "name": "Media captions",
+     "hint": "",
+     "text": "up to 1,024 characters",
+     "premium": "up to 4,096 characters"
+    },
+    {
+     "id": "upload_size",
+     "name": "File size limit",
+     "hint": "",
+     "text": "up to 2 GB",
+     "premium": "up to 4 GB"
+    },
+    {
+     "id": "file_name_length",
+     "name": "File name length",
+     "hint": "",
+     "text": "up to 60 characters, others will be trimmed out",
+     "premium": null
+    },
+    {
+     "id": "video_message_duration",
+     "name": "Video message duration",
+     "hint": "",
+     "text": "up to 1 minute",
+     "premium": null
+    },
+    {
+     "id": "video_message_file_size",
+     "name": "Video message file size",
+     "hint": "",
+     "text": "Up to 12 MB",
+     "premium": null
+    },
+    {
+     "id": "video_message_diameter",
+     "name": "Video message diameter",
+     "hint": "",
+     "text": "384px",
+     "premium": null
+    },
+    {
+     "id": "album_size",
+     "name": "Images and videos in single message",
+     "hint": "(album)",
+     "text": "up to 10 items",
+     "premium": null
+    },
+    {
+     "id": "delayed_messages",
+     "name": "Scheduled messages number",
+     "hint": "",
+     "text": "up to 100 items (per each chat)",
+     "premium": null
+    },
+    {
+     "id": "delaying_messages",
+     "name": "Schedule range",
+     "hint": "",
+     "text": "up to 365 days",
+     "premium": null
+    },
+    {
+     "id": "custom_emoji_per_message",
+     "name": "Custom emoji per message",
+     "hint": "without Telegram Premium, custom emoji can be sent only to Saved Messages, more than 100 custom emoji are replaced with the corresponding standard emoji; on low-end devices even less custom emojis may be displayed",
+     "text": "not available",
+     "premium": "up to 100 emoji"
+    },
+    {
+     "id": "links_per_message",
+     "name": "Links per message",
+     "hint": "",
+     "text": "up to 100 links",
+     "premium": null
+    },
+    {
+     "id": "number_unique_reaction_types",
+     "name": "Number of unique reaction types",
+     "hint": "on a single message",
+     "text": "up to 11 reaction icons",
+     "premium": null
+    },
+    {
+     "id": "speech_text_transcriptions",
+     "name": "Number of speech to text transcriptions",
+     "hint": "for voice and video messages",
+     "text": "up to 2 free transcriptions weekly",
+     "premium": "unlimited"
+    },
+    {
+     "id": "duration_speech_text_transcriptions",
+     "name": "Duration of speech to text transcriptions",
+     "hint": "for voice and video messages",
+     "text": "up to 5 minutes",
+     "premium": "no duration limit set"
+    },
+    {
+     "id": "length_quoted_text",
+     "name": "Length of a quoted text",
+     "hint": "",
+     "text": "up to 1024 characters",
+     "premium": null
+    },
+    {
+     "id": "quick_replies_number",
+     "name": "Quick Replies number",
+     "hint": "(predefined templates)",
+     "text": "",
+     "premium": "up to 100 templates"
+    },
+    {
+     "id": "quick_replies_messages_number",
+     "name": "Quick Replies messages number",
+     "hint": "(number of messages that can be sent by a single Quick Reply)",
+     "text": "",
+     "premium": "up to 10 messages"
+    }
+   ]
+  },
+  {
+   "id": "poll",
+   "name": "Polls",
+   "items": [
+    {
+     "id": "poll_question_length",
+     "name": "Poll question length",
+     "hint": "",
+     "text": "1 to 255 characters",
+     "premium": null
+    },
+    {
+     "id": "poll_options_count",
+     "name": "Poll options count",
+     "hint": "",
+     "text": "1 to 12",
+     "premium": null
+    },
+    {
+     "id": "poll_option_length",
+     "name": "Poll option length",
+     "hint": "",
+     "text": "1 to 100 characters",
+     "premium": null
+    },
+    {
+     "id": "maximum_countries_number",
+     "name": "Maximum countries number",
+     "hint": "If poll is geo limited",
+     "text": "12",
+     "premium": null
+    },
+    {
+     "id": "poll_description_length",
+     "name": "Poll Description length",
+     "hint": "",
+     "text": "4,096",
+     "premium": null
+    },
+    {
+     "id": "poll_duration",
+     "name": "Poll duration",
+     "hint": "",
+     "text": "up to 30 days",
+     "premium": null
+    },
+    {
+     "id": "countries",
+     "name": "Countries",
+     "hint": "(for polls in channels, if \"Limit by Country\" is enabled)",
+     "text": "up to 12",
+     "premium": null
+    }
+   ]
+  },
+  {
+   "id": "folders",
+   "name": "Folders",
+   "items": [
+    {
+     "id": "name_length",
+     "name": "Folder name length",
+     "hint": "",
+     "text": "up to 12 characters",
+     "premium": null
+    },
+    {
+     "id": "folder_amount",
+     "name": "Folders amount",
+     "hint": "",
+     "text": "up to 10 folders",
+     "premium": "up to 30 folders"
+    },
+    {
+     "id": "chats_per_folder",
+     "name": "Chats per folder",
+     "hint": "Does not include chats added to the folder by their type (e.g. Channels). Includes chats added to the Exceptions section.",
+     "text": "up to 100 chats",
+     "premium": "up to 200 chats"
+    },
+    {
+     "id": "pinned_chats_in_folder",
+     "name": "Pinned chats in a folder",
+     "hint": "(this limit decreases by the number of chats individually added to the folder settings)",
+     "text": "up to 100 chats",
+     "premium": "up to 200 chats"
+    }
+   ]
+  },
+  {
+   "id": "public_folders",
+   "name": "Public Folders",
+   "items": [
+    {
+     "id": "public_folders_count",
+     "name": "Number of public folders",
+     "hint": "",
+     "text": "up to 2 folders",
+     "premium": "up to 20 folders"
+    },
+    {
+     "id": "chats_per_public_folder",
+     "name": "Chats/channels per public folder",
+     "hint": "",
+     "text": "up to 100 items",
+     "premium": "up to 200 items"
+    },
+    {
+     "id": "folder_links_number",
+     "name": "Folder links number",
+     "hint": "per public folder",
+     "text": "up to 3 links",
+     "premium": "up to 10 links"
+    }
+   ]
+  },
+  {
+   "id": "bots",
+   "name": "Bots",
+   "items": [
+    {
+     "id": "bots_amount",
+     "name": "Bots number",
+     "hint": "(created by @BotFather)",
+     "text": "up to 20 items",
+     "premium": "up to 40 items"
+    },
+    {
+     "id": "username_length",
+     "name": "Length of @username",
+     "hint": "for bots",
+     "text": "5 to 32 characters",
+     "premium": null
+    },
+    {
+     "id": "info_length",
+     "name": "Bot info length",
+     "hint": "(/setabouttext)",
+     "text": "up to 120 characters",
+     "premium": null
+    },
+    {
+     "id": "description_length",
+     "name": "Bot description length",
+     "hint": "",
+     "text": "up to 512 characters",
+     "premium": null
+    },
+    {
+     "id": "upload_limit_botapi",
+     "name": "File upload limit",
+     "hint": "without local Bot API server",
+     "text": "up to 50 MB",
+     "premium": null
+    },
+    {
+     "id": "upload_limit_botapi_local",
+     "name": "File upload limit",
+     "hint": "with local Bot API server",
+     "text": "up to 2000 MiB",
+     "premium": null
+    },
+    {
+     "id": "download_limit_botapi",
+     "name": "File download limit",
+     "hint": "without local Bot API server",
+     "text": "up to 20 MB",
+     "premium": null
+    },
+    {
+     "id": "download_limit_botapi_local",
+     "name": "File download limit",
+     "hint": "with local Bot API server",
+     "text": "up to 2000 MB",
+     "premium": null
+    },
+    {
+     "id": "keys_in_keyboard_number",
+     "name": "Keyboard buttons number",
+     "hint": "",
+     "text": "up to 100 entities",
+     "premium": null
+    },
+    {
+     "id": "formatting_data",
+     "name": "Message markup data",
+     "hint": "e.g. inline buttons",
+     "text": "up to 10 KB",
+     "premium": null
+    },
+    {
+     "id": "formatting_entities",
+     "name": "Formatting entities",
+     "hint": "(bold, italic etc.)",
+     "text": "up to 100 items",
+     "premium": null
+    },
+    {
+     "id": "messaging_frequency",
+     "name": "Message sending frequency",
+     "hint": "in any chat",
+     "text": "up to roughly one message per second, except maybe short bursts",
+     "premium": null
+    },
+    {
+     "id": "messaging_frequency_groups",
+     "name": "Message sending frequency",
+     "hint": "in group chats",
+     "text": "up to 20 messages per minute in the same chat",
+     "premium": null
+    },
+    {
+     "id": "messaging_frequency_broadcast",
+     "name": "Message broadcasting frequency",
+     "hint": "only applies when actively sending notifications to otherwise inactive chats",
+     "text": "up to 30 messages per second across chats",
+     "premium": null
+    },
+    {
+     "id": "api_requests_frequency",
+     "name": "API requests frequency",
+     "hint": "",
+     "text": "up to about 30 requests per second",
+     "premium": null
+    },
+    {
+     "id": "bot_commands_count",
+     "name": "Commands amount",
+     "hint": "(in BotFather)",
+     "text": "0 to 100 commands",
+     "premium": null
+    },
+    {
+     "id": "bot_command_name_length",
+     "name": "Command length",
+     "hint": "(in BotFather)",
+     "text": "from 1 to 32 characters",
+     "premium": null
+    },
+    {
+     "id": "bot_command_description_length",
+     "name": "Command description length",
+     "hint": "",
+     "text": "up to 256 characters, must be non-empty when set via Bot API",
+     "premium": null
+    },
+    {
+     "id": "start_payload_size",
+     "name": "Bot /start payload length",
+     "hint": "used in deep linking",
+     "text": "up to 64 bytes",
+     "premium": null
+    },
+    {
+     "id": "bot_alert_length",
+     "name": "Bot alert message length",
+     "hint": "",
+     "text": "up to 200 characters",
+     "premium": null
+    },
+    {
+     "id": "inline_max_items",
+     "name": "Inline results number",
+     "hint": "",
+     "text": "up to 50 items per page",
+     "premium": null
+    },
+    {
+     "id": "inline_search_query",
+     "name": "Inline search query",
+     "hint": "(<@BotUsername> your search query). Users can enter queries without restrictions, but the bot can only process a certain number of characters",
+     "text": "up to 256 characters after bot's username",
+     "premium": null
+    },
+    {
+     "id": "bot_transfers",
+     "name": "Bot transfers",
+     "hint": "between accounts",
+     "text": "up to 5 in a day",
+     "premium": null
+    },
+    {
+     "id": "length_custom_verification_text",
+     "name": "Length of custom verification text",
+     "hint": "",
+     "text": "from 1 to 70 characters",
+     "premium": null
+    }
+   ]
+  },
+  {
+   "id": "stories",
+   "name": "Stories",
+   "items": [
+    {
+     "id": "free_stories_number",
+     "name": "Account lifetime number of stories that can be posted without Premium",
+     "hint": "",
+     "text": "up to 3 stories; any stories ever posted, under any conditions, still count against this limit, including deleted stories, stories posted with Premium, and stories that were posted for free when the feature launched",
+     "premium": "doesn't apply when Premium is active"
+    },
+    {
+     "id": "story_availability",
+     "name": "Story availability",
+     "hint": "countries where stories are available without Telegram Premium",
+     "text": "Telegram is rolling out the free 1 story limit globally.\n\nThe list of countries where stories used to be paid-only is available here: https://tginfo.me/stories-by-countries-en/",
+     "premium": null
+    },
+    {
+     "id": "story_lifetime",
+     "name": "Story lifetime",
+     "hint": "",
+     "text": "24 hours",
+     "premium": "6/12/24/48 hours"
+    },
+    {
+     "id": "story_duration",
+     "name": "Story duration",
+     "hint": "",
+     "text": "up to 60 seconds",
+     "premium": null
+    },
+    {
+     "id": "story_viewers_visibility",
+     "name": "Viewers visibility",
+     "hint": "",
+     "text": "24 hours",
+     "premium": "unlimited"
+    },
+    {
+     "id": "story_daily_limit",
+     "name": "Daily stories limit",
+     "hint": "",
+     "text": "1 story",
+     "premium": "up to 100 stories"
+    },
+    {
+     "id": "story_weekly_limit",
+     "name": "Weekly stories limit",
+     "hint": "",
+     "text": "up to 3 stories",
+     "premium": "up to 700 stories"
+    },
+    {
+     "id": "story_monthly_limit",
+     "name": "Monthly stories limit",
+     "hint": "",
+     "text": "up to 10 stories",
+     "premium": "up to 3,000 stories"
+    },
+    {
+     "id": "story_text_length",
+     "name": "Text length in story",
+     "hint": "",
+     "text": "up to 200 characters",
+     "premium": "up to 2,048 characters"
+    },
+    {
+     "id": "story_incognito_frequency",
+     "name": "Incognito usage frequency (Hide My View)",
+     "hint": "",
+     "text": "not available",
+     "premium": "once per 3 hours"
+    },
+    {
+     "id": "story_incognito_duration",
+     "name": "Incognito duration (Hide My View)",
+     "hint": "(all views for the last 5 minutes before the mode is turned on disappear, and views for 25 minutes after it is turned on are not recorded)",
+     "text": "not available",
+     "premium": "30 minutes"
+    },
+    {
+     "id": "stories_albums",
+     "name": "Stories albums",
+     "hint": "",
+     "text": "up to 100",
+     "premium": null
+    },
+    {
+     "id": "number_stories_album",
+     "name": "Number of stories in an album",
+     "hint": "",
+     "text": "up to 100 stories",
+     "premium": null
+    },
+    {
+     "id": "stories_limit_reset_time",
+     "name": "Stories limit reset time",
+     "hint": "",
+     "text": "the limit jumps back to its maximum value in 24 hours after the first story was published\n\nsee also: https://tginfo.me/boosts-and-channel-stories-en",
+     "premium": null
+    },
+    {
+     "id": "adding_clickable_links_stories",
+     "name": "Adding clickable links to stories",
+     "hint": "",
+     "text": "not available",
+     "premium": "up to 3 stickers"
+    },
+    {
+     "id": "number_reaction_stickers",
+     "name": "Number of reaction stickers",
+     "hint": "",
+     "text": "only 1 reaction",
+     "premium": "up to 5 reactions"
+    },
+    {
+     "id": "pinned_stories",
+     "name": "Pinned stories",
+     "hint": "",
+     "text": "3",
+     "premium": null
+    }
+   ]
+  },
+  {
+   "id": "search",
+   "name": "Search",
+   "items": [
+    {
+     "id": "global_search_min_query",
+     "name": "Minimal query length",
+     "hint": "for global search",
+     "text": "at least 4 characters",
+     "premium": null
+    },
+    {
+     "id": "username_resolve_limit",
+     "name": "Username resolve limit",
+     "hint": "(for both bots and user accounts)",
+     "text": "up to 200 usernames daily",
+     "premium": null
+    },
+    {
+     "id": "hashtag_search_depth",
+     "name": "Hashtag search results number",
+     "hint": "",
+     "text": "roughly last 5,000 messages",
+     "premium": null
+    },
+    {
+     "id": "minimal_subscribers_public_search_eligibility",
+     "name": "Minimal channel subscribers for public search eligibility",
+     "hint": "",
+     "text": "at least 100 subscribers",
+     "premium": null
+    },
+    {
+     "id": "number_recommended_channels",
+     "name": "Number of recommended channels",
+     "hint": "(\"Similar channels\" in global search and specific channels)",
+     "text": "up to 10",
+     "premium": "up to 100"
+    }
+   ]
+  },
+  {
+   "id": "stickers",
+   "name": "Stickers",
+   "items": [
+    {
+     "id": "added_packs",
+     "name": "Added packs number",
+     "hint": "",
+     "text": "up to 200 items",
+     "premium": null
+    },
+    {
+     "id": "favorite_stickers",
+     "name": "Favorite stickers number",
+     "hint": "",
+     "text": "up to 5 items",
+     "premium": "up to 10 items"
+    },
+    {
+     "id": "pack_size",
+     "name": "Stickers in a pack number",
+     "hint": "",
+     "text": "up to 120 for static, up to 50 for animated",
+     "premium": null
+    },
+    {
+     "id": "sticker_size",
+     "name": "Sticker size",
+     "hint": "",
+     "text": "one side equal to 512px, the other side 512px or less; strictly 512x512 for animated",
+     "premium": null
+    },
+    {
+     "id": "animation_duration",
+     "name": "Animation duration",
+     "hint": "",
+     "text": "up to 3 seconds",
+     "premium": null
+    },
+    {
+     "id": "file_size",
+     "name": "Sticker file size",
+     "hint": "",
+     "text": "up to 512 KB for static, up to 64 KB for animated",
+     "premium": null
+    },
+    {
+     "id": "fps",
+     "name": "FPS",
+     "hint": "",
+     "text": "either 30 or 60",
+     "premium": null
+    },
+    {
+     "id": "stickerpack_name_length",
+     "name": "Pack name length",
+     "hint": "",
+     "text": "up to 64 characters",
+     "premium": null
+    },
+    {
+     "id": "stickerpack_url_length",
+     "name": "Pack /addstickers url length",
+     "hint": "",
+     "text": "up to 62 characters",
+     "premium": null
+    },
+    {
+     "id": "emojis_per_pack",
+     "name": "Emojis per pack",
+     "hint": "",
+     "text": "up to 200",
+     "premium": null
+    }
+   ]
+  },
+  {
+   "id": "telegraph",
+   "name": "Telegraph",
+   "items": [
+    {
+     "id": "accounts_number",
+     "name": "Accounts number",
+     "hint": "in @telegraph bot",
+     "text": "up to 5 items",
+     "premium": null
+    },
+    {
+     "id": "text_size",
+     "name": "Article size",
+     "hint": "(including pictures)",
+     "text": "up to 64 KiB",
+     "premium": null
+    },
+    {
+     "id": "media_attachments",
+     "name": "Media attachments",
+     "hint": "in articles",
+     "text": "Only external links; uploads were disabled",
+     "premium": null
+    }
+   ]
+  },
+  {
+   "id": "miscellaneous",
+   "name": "Miscellaneous",
+   "items": [
+    {
+     "id": "properties",
+     "name": "Video avatar properties",
+     "hint": "",
+     "text": "800x800px, up to 2 MB",
+     "premium": null
+    },
+    {
+     "id": "photo_resolution",
+     "name": "Photo resolution (SD)",
+     "hint": "when sent with compression",
+     "text": "each side should be less or equal to 1280px, else it will be downscaled so the biggest side will be 1280px",
+     "premium": null
+    },
+    {
+     "id": "photo_resolution_hd",
+     "name": "Photo resolution (HD)",
+     "hint": "when sent with compression",
+     "text": "each side should be less or equal to 2560px, else it will be downscaled so the biggest side will be 2560px",
+     "premium": null
+    },
+    {
+     "id": "parallel_download_small_files",
+     "name": "Parallel download for small files",
+     "hint": "(less than 20 MB)",
+     "text": "approximately up to 5 files",
+     "premium": null
+    },
+    {
+     "id": "parallel_download_big_files",
+     "name": "Parallel download for big files",
+     "hint": "(more than 20 MB)",
+     "text": "approximately up to 2 files",
+     "premium": null
+    }
+   ]
+  },
+  {
+   "id": "checklists",
+   "name": "Checklists (To Do)",
+   "items": [
+    {
+     "id": "max_number_items_list",
+     "name": "Number of items in checklist",
+     "hint": "",
+     "text": "from 1 to 30",
+     "premium": null
+    },
+    {
+     "id": "checklist_caption",
+     "name": "Checklist caption",
+     "hint": "",
+     "text": "from 1 to 255 characters",
+     "premium": null
+    },
+    {
+     "id": "item_caption",
+     "name": "Item caption",
+     "hint": "",
+     "text": "from 1 to 100 characters",
+     "premium": null
+    }
+   ]
+  },
+  {
+   "id": "gifts",
+   "name": "Gifts & Stars",
+   "items": [
+    {
+     "id": "maximum_period_convert_received_gift_stars",
+     "name": "Maximum period to convert received gift to stars",
+     "hint": "",
+     "text": "7 days",
+     "premium": null
+    },
+    {
+     "id": "maximum_gifttostars_exchange_term",
+     "name": "Cooldown before gift can be converted into stars from new session",
+     "hint": "",
+     "text": "7 days",
+     "premium": null
+    },
+    {
+     "id": "minimum_term_stars_ownership_withdraw",
+     "name": "Cooldown before gift can be transferred to another user",
+     "hint": "if gift was bought with stars which were bought with fiat currency",
+     "text": "21 days",
+     "premium": null
+    },
+    {
+     "id": "length_message_attached_gift",
+     "name": "Length of a message attached to a gift",
+     "hint": "",
+     "text": "up to 128 characters",
+     "premium": null
+    },
+    {
+     "id": "maximum_pinned_gifts_amount",
+     "name": "Maximum pinned gifts number",
+     "hint": "",
+     "text": "6",
+     "premium": null
+    },
+    {
+     "id": "gift_collections_users_profile",
+     "name": "Gift collections in user's profile",
+     "hint": "",
+     "text": "up to 10",
+     "premium": null
+    },
+    {
+     "id": "number_gifts_collection",
+     "name": "Number of gifts in a collection",
+     "hint": "",
+     "text": "up to 500 gifts",
+     "premium": null
+    },
+    {
+     "id": "resale_price_collectible_gifts",
+     "name": "Resale price for collectible gifts",
+     "hint": "in stars",
+     "text": "from 125 to 100,000 stars",
+     "premium": null
+    },
+    {
+     "id": "minimum_gift_upgrade_price",
+     "name": "Minimum price of a gift upgrade",
+     "hint": "",
+     "text": "20% of gift price",
+     "premium": null
+    },
+    {
+     "id": "paid_reaction_transaction_amount",
+     "name": "Paid reaction transaction amount",
+     "hint": "",
+     "text": "from 1 to 10,000 stars",
+     "premium": null
+    },
+    {
+     "id": "price_paid_media_post",
+     "name": "Price for paid media in a post",
+     "hint": "",
+     "text": "from 1 to 25,000 stars",
+     "premium": null
+    },
+    {
+     "id": "minimum_stars_amount_withdraw",
+     "name": "Minimum stars amount for withdrawal",
+     "hint": "",
+     "text": "1000 stars",
+     "premium": null
+    },
+    {
+     "id": "price_paid_message",
+     "name": "Price for a private paid message",
+     "hint": "",
+     "text": "from 1 to 35,000 stars",
+     "premium": null
+    },
+    {
+     "id": "price_suggested_channel_message",
+     "name": "Price for a suggested channel message",
+     "hint": "",
+     "text": "Free, or from 2 to 35,000 stars",
+     "premium": null
+    },
+    {
+     "id": "number_stars_that_can_be_withdrawn_chats_channels",
+     "name": "Number of stars that can be withdrawn in chats and channels",
+     "hint": "",
+     "text": "from 1,000 stars to  25,000,000 stars",
+     "premium": null
+    },
+    {
+     "id": "allowed_payouts_affiliate_programs",
+     "name": "Allowed revenue share percentages in affiliate programs",
+     "hint": "per referred user",
+     "text": "from 0.1% to 80%",
+     "premium": null
+    },
+    {
+     "id": "resale_price_collectible_gifts_ton",
+     "name": "Resale price for collectible gifts",
+     "hint": "in TON",
+     "text": "from 7 TON to 100,000 TON",
+     "premium": null
+    },
+    {
+     "id": "guaranteed_duration_paid_message",
+     "name": "Minimal guaranteed duration of a paid post",
+     "hint": "",
+     "text": "24 hours",
+     "premium": null
+    },
+    {
+     "id": "paid_post_scheduling_timeframe",
+     "name": "Paid post scheduling timeframe",
+     "hint": "",
+     "text": "from 5 minutes to 31 days in advance",
+     "premium": null
+    },
+    {
+     "id": "price_paid_post_ton_cryptocurrency",
+     "name": "Price for a paid post in TON cryptocurrency",
+     "hint": "",
+     "text": "from 0.01 TON to 10,000 TON",
+     "premium": null
+    },
+    {
+     "id": "minimal_ton_value_withdrawal_from_account",
+     "name": "Minimal TON value for withdrawal from account",
+     "hint": "",
+     "text": "10 TON",
+     "premium": null
+    },
+    {
+     "id": "cooldown_before_ton_withdrawal",
+     "name": "Cooldown before TON withdrawal",
+     "hint": "via Fragment.com",
+     "text": "2 days",
+     "premium": null
+    }
+   ]
+  },
+  {
+   "id": "boosts",
+   "name": "Boosts",
+   "items": [
+    {
+     "id": "number_boosts",
+     "name": "Number of boosts if you bought Premium for yourself",
+     "hint": "",
+     "text": "see also: https://tginfo.me/boosts-and-channel-stories-en",
+     "premium": "4 boosts"
+    },
+    {
+     "id": "number_boosts_2",
+     "name": "Number of boosts if you received Premium as a gift",
+     "hint": "",
+     "text": "",
+     "premium": "1 boost"
+    },
+    {
+     "id": "number_boosts_if_you_won_premium_giveaway",
+     "name": "Number of boosts you get if you won Premium in a giveaway",
+     "hint": "",
+     "text": "",
+     "premium": "giveaway Premium subscriptions give 0 boosts"
+    },
+    {
+     "id": "boosts_you_get_gifting_somebody_premium",
+     "name": "Boosts you get for gifting somebody Premium",
+     "hint": "",
+     "text": "you gain 3 additional boosts to what you already got",
+     "premium": null
+    },
+    {
+     "id": "boost_transfer_cooldown",
+     "name": "Boost transfer cooldown",
+     "hint": "if you want to change a channel you boost",
+     "text": "",
+     "premium": "24 hours"
+    },
+    {
+     "id": "revoking_boosts",
+     "name": "Revoking boosts",
+     "hint": "",
+     "text": "is not possible, boosts can only be transferred",
+     "premium": null
+    },
+    {
+     "id": "maximum_boosts_number",
+     "name": "Maximum boosts number on an account",
+     "hint": "(not fully confirmed)",
+     "text": "up to 103 boosts (4 boosts from own Premium subscription + 33 gifted subscriptions)",
+     "premium": null
+    },
+    {
+     "id": "number_channels_giveaway",
+     "name": "Number of channels in a giveaway",
+     "hint": "",
+     "text": "up to 10 channels",
+     "premium": null
+    },
+    {
+     "id": "number_countries_giveaway",
+     "name": "Number of countries in a giveaway",
+     "hint": "",
+     "text": "up to 10",
+     "premium": null
+    },
+    {
+     "id": "giveaway_duration",
+     "name": "Giveaway duration",
+     "hint": "",
+     "text": "up to 31 days",
+     "premium": null
+    },
+    {
+     "id": "channel_levels",
+     "name": "Channel levels",
+     "hint": "",
+     "text": "from 1 up to 100",
+     "premium": null
+    },
+    {
+     "id": "minimum_level_set_channel_color",
+     "name": "Level to set channel color",
+     "hint": "",
+     "text": "at least level 5",
+     "premium": null
+    },
+    {
+     "id": "level_set_channel_background_icon",
+     "name": "Channel level to customize message accent color and emoji",
+     "hint": "",
+     "text": "at least level 4",
+     "premium": null
+    },
+    {
+     "id": "level_customize_profile_background_color_emoji",
+     "name": "Channel level to customize profile background color and emoji",
+     "hint": "",
+     "text": "at least level 7",
+     "premium": null
+    },
+    {
+     "id": "level_set_emoji_status",
+     "name": "Channel level to set emoji status",
+     "hint": "(only from official emoji sets)",
+     "text": "at least level 8",
+     "premium": null
+    },
+    {
+     "id": "level_set_chat_wallpaper",
+     "name": "Channel level to set one of the predefined chat themes",
+     "hint": "",
+     "text": "at least level 9",
+     "premium": null
+    },
+    {
+     "id": "level_set_custom_chat_wallpaper",
+     "name": "Channel level to set a custom chat wallpaper",
+     "hint": "",
+     "text": "at least level 10",
+     "premium": null
+    },
+    {
+     "id": "level_activate_speech_transcriptions",
+     "name": "Level to activate speech transcriptions",
+     "hint": "for users without Premium",
+     "text": "at least level 6",
+     "premium": null
+    },
+    {
+     "id": "level_set_grouppromoted_emoji",
+     "name": "Level to set group-promoted emoji",
+     "hint": "",
+     "text": "at least level 4",
+     "premium": null
+    },
+    {
+     "id": "group_level_customize_profile_background_color_emoji",
+     "name": "Group level to customize profile background color and emoji",
+     "hint": "",
+     "text": "at least level 5",
+     "premium": null
+    },
+    {
+     "id": "group_level_set_emoji_status",
+     "name": "Group level to set emoji status",
+     "hint": "(only from official emoji sets)",
+     "text": "at least level 8",
+     "premium": null
+    },
+    {
+     "id": "chat_level_set_one_predefined_chat_themes",
+     "name": "Chat level to set one of the predefined chat themes",
+     "hint": "",
+     "text": "at least level 9",
+     "premium": null
+    },
+    {
+     "id": "chat_level_set_custom_chat_wallpaper",
+     "name": "Chat level to set a custom chat wallpaper",
+     "hint": "",
+     "text": "at least level 10",
+     "premium": null
+    },
+    {
+     "id": "channel_level_disable_ads",
+     "name": "Channel level to disable ads",
+     "hint": "",
+     "text": "at least level 50",
+     "premium": null
+    },
+    {
+     "id": "channel_level_activate_channelwide_automatic_translation",
+     "name": "Channel level to activate channel-wide automatic translation",
+     "hint": "for users without Premium",
+     "text": "at least level 3",
+     "premium": null
+    }
+   ]
+  },
+  {
+   "id": "ai_editor",
+   "name": "AI Editor",
+   "items": [
+    {
+     "id": "maximum_style_numbers",
+     "name": "Maximum style numbers",
+     "hint": "In AI Editor",
+     "text": "20",
+     "premium": null
+    },
+    {
+     "id": "style_title_length",
+     "name": "Style title length",
+     "hint": "",
+     "text": "12 characters",
+     "premium": null
+    }
+   ]
+  },
+  {
+   "id": "articles",
+   "name": "Articles",
+   "items": [
+    {
+     "id": "length",
+     "name": "Length",
+     "hint": "",
+     "text": "32,768 UTF-8 characters",
+     "premium": null
+    },
+    {
+     "id": "blocks",
+     "name": "Blocks",
+     "hint": "(nested blocks, list items, ordered list items, table rows, quotation blocks, and details blocks, and so on)",
+     "text": "500",
+     "premium": null
+    },
+    {
+     "id": "nested_formatting_levels",
+     "name": "Nested formatting levels",
+     "hint": "(for lists)",
+     "text": "16",
+     "premium": null
+    },
+    {
+     "id": "media",
+     "name": "Media",
+     "hint": "images, videos, audio files",
+     "text": "50",
+     "premium": null
+    },
+    {
+     "id": "columns_table",
+     "name": "Columns in table",
+     "hint": "",
+     "text": "20",
+     "premium": null
+    }
+   ]
+  }
+ ]
+}

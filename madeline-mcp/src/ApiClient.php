@@ -47,6 +47,22 @@ final class ApiClient
         return ($env !== false && $env !== '') ? \rtrim($env, '/') : \dirname(__DIR__, 2) . '/sessions';
     }
 
+    public function defaultSession(): string
+    {
+        return $this->defaultSession;
+    }
+
+    /** cwd-independent cache dir for scrapes/usage state. */
+    public static function cacheDir(): string
+    {
+        $env = \getenv('MADELINE_CACHE_DIR');
+        $dir = ($env !== false && $env !== '') ? \rtrim($env, '/') : \dirname(self::sessionDir()) . '/cache';
+        if (!\is_dir($dir)) {
+            @\mkdir($dir, 0755, true);
+        }
+        return $dir;
+    }
+
     public function __construct(string $session = 'madeline-mcp')
     {
         $this->defaultSession = $session;

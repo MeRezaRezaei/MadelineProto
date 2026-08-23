@@ -124,6 +124,35 @@ auth.logOut             {}
 Use `call_method` / `list_methods` for anything not surfaced here (e.g. bots
 or folders), but prefer the named settings tools when available.
 
+## Limits, quota & cooldowns (AI safety layer)
+
+The AI can now act within Telegram's real constraints instead of tripping them.
+Data comes from the community-maintained **[limits.tginfo.me](https://limits.tginfo.me/en)**
+(`github.com/tginfo/Telegram-Limits`), fetched as structured JSON and cached for
+24h (auto-refresh; bundled offline snapshot in `resources/`).
+
+| Tool | Purpose |
+| --- | --- |
+| `session.get_limits` | Full community limits table (`category=` filter, `refresh=true`) with free vs premium values |
+| `session.get_quota` | Remaining budget vs account type: daily resolve/creation/membership budgets, message rates/min+hour, active cooldowns, recent FLOOD_WAITs, @SpamBot standing |
+| `session.check_spam_status` | Probe @SpamBot: `ok` / `warned` / `limited-until-date` / `banned`; cached ~1h, `force=true` re-probes |
+| `session.get_cooldowns` | Active FLOOD_WAIT locks (`clear=true` to reset) |
+
+Automatic protections:
+
+- **FLOOD_WAIT capture** — any tool call that hits a flood wait is recorded
+  (method, seconds) into the account's usage state and sets a **cooldown lock**
+  (global + per-category).
+- **Prevention guard** — while a lock is active, matching calls are rejected
+  locally with `code 420 / cooldown_active` before touching Telegram.
+- **Budgeting** — `resolve_peer`, message sends, chat/channel creation,
+  membership changes and folder operations are counted per-day/per-window and
+  reported against community limits scaled by premium status.
+
+State lives in `cache/usage-<session>.json`; limit cache in
+`cache/telegram-limits-en.json`. Override locations with
+`MADELINE_CACHE_DIR`, language with `LIMITS_LANG`.
+
 ## Tests
 
 ```

@@ -6,6 +6,8 @@ namespace MadelineMcp\Settings;
 
 use danog\MadelineProto\API;
 use MadelineMcp\ApiClient;
+use MadelineMcp\Limits\CategoryMapper;
+use MadelineMcp\Limits\UsageTracker;
 use ReflectionClass;
 use ReflectionMethod;
 use ReflectionParameter;
@@ -27,6 +29,8 @@ use Throwable;
  */
 final class SettingsCatalog
 {
+    /** Optional FLOOD_WAIT sink wired by ToolCatalog. */
+    public ?UsageTracker $floodSink = null;
     /** Bounded contexts (Telegram namespaces) exposed as settings. */
     private const CONTEXTS = [
         'account' => \danog\MadelineProto\Namespace\Account::class,
@@ -159,7 +163,20 @@ final class SettingsCatalog
             $result = $obj->{$method}(...$ordered);
             return \is_object($result) && \method_exists($result, 'toArray') ? $result->toArray() : $result;
         } catch (Throwable $e) {
-            return ['_error' => true, 'code' => $e->getCode(), 'message' => $e->getMessage(), 'class' => \get_class($e)];
+            if ($this->floodSink !== null) {
+                $sec = UsageTracker::floodSeconds($e);
+                if ($sec !== null) {
+                    $cat = CategoryMapper::map($tool)['category'] ?? null;
+                    $this->floodSink->recordFloodWait($sec, $tool, $cat);
+                }
+            }
+            return [
+                '_error' => true,
+                'code' => $e->getCode(),
+                'message' => $e->getMessage(),
+                'class' => \get_class($e),
+                'flood_wait_seconds' => UsageTracker::floodSeconds($e),
+            ];
         }
     }
 

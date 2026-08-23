@@ -10,6 +10,9 @@ use danog\MadelineProto\Settings\AppInfo;
 use danog\MadelineProto\Settings\Logger;
 use danog\MadelineProto\TL\TL;
 use MadelineMcp\Settings\SettingsCatalog;
+use MadelineMcp\Limits\CategoryMapper;
+use MadelineMcp\Limits\LimitsCatalog;
+use MadelineMcp\Limits\UsageTracker;
 use Throwable;
 
 /**
@@ -21,11 +24,53 @@ use Throwable;
 final class ToolCatalog
 {
     private ?TL $tl = null;
+    private string $currentTool = '';
+    private string $currentSession = '';
 
     public function __construct(
         private readonly ApiClient $client,
         private readonly SettingsCatalog $settings = new SettingsCatalog(),
+        private readonly LimitsCatalog $limits = new LimitsCatalog(),
     ) {
+    }
+
+    /** Cooldown guard: returns an error payload when a lock is active. */
+    private function guard(string $name, array $args): ?array
+    {
+        $map = CategoryMapper::map($name);
+        if ($map === null) {
+            return null;
+        }
+        $blocked = UsageTracker::forSession($this->resolveSession($args))->blocked($map['category']);
+        if ($blocked === null) {
+            return null;
+        }
+        return [
+            '_error' => true,
+            'code' => 420,
+            'message' => 'cooldown_active: ' . $blocked['scope'] . ' FLOOD_WAIT lock until '
+                . date('c', $blocked['until']) . " (" . $blocked['remaining'] . "s left). "
+                . 'Inspect session.get_cooldowns / wait it out.',
+            'flood' => true,
+            'cooldown' => $blocked,
+        ];
+    }
+
+    private function resolveSession(array $args): string
+    {
+        $s = $args['session_name'] ?? null;
+        return (is_string($s) && $s !== '') ? $s : $this->client->defaultSession();
+    }
+
+    private function recordUsage(string $name): void
+    {
+        $map = CategoryMapper::map($name);
+        if ($map !== null) {
+            try {
+                UsageTracker::forSession($this->currentSession)->record($map['category']);
+            } catch (Throwable) {
+            }
+        }
     }
 
     private function tl(): TL
@@ -68,7 +113,7 @@ final class ToolCatalog
     /** The full list of tools advertised to the client. */
     public function all(): array
     {
-        return array_merge($this->settings->tools(), [
+        return array_merge($this->settings->tools(), $this->limits->tools(), [
             [
                 'name' => 'list_accounts',
                 'description' => 'List all configured Telegram accounts/sessions and their login state.',
@@ -230,11 +275,29 @@ final class ToolCatalog
 
     public function call(string $name, array $args): mixed
     {
+        $this->currentTool = $name;
+        $this->currentSession = $this->resolveSession($args);
+
+        $guard = $this->guard($name, $args);
+        if ($guard !== null) {
+            return $guard;
+        }
+
+        if ($this->limits->has($name)) {
+            $result = $this->twrap(fn () => $this->limits->dispatch($name, $args, $this->client));
+            return $result;
+        }
+
         if ($this->settings->has($name)) {
             $session = $args['session_name'] ?? null;
-            return $this->twrap(fn () => $this->settings->dispatch($name, $args, $this->api($session)));
+            // Wire FLOOD_WAIT recording for the settings layer.
+            $this->settings->floodSink = UsageTracker::forSession($this->resolveSession($args));
+            $result = $this->twrap(fn () => $this->settings->dispatch($name, $args, $this->api($session)));
+            $this->recordUsage($name);
+            return $result;
         }
-        return match ($name) {
+
+        $result = match ($name) {
             'list_accounts' => $this->client->listAccounts(),
             'add_account' => $this->addAccount($args),
             'start_login' => $this->startLogin($args),
@@ -255,6 +318,8 @@ final class ToolCatalog
             'call_method' => $this->callRaw($args),
             default => ['_error' => true, 'message' => "Unknown tool: $name"],
         };
+        $this->recordUsage($name);
+        return $result;
     }
 
     private function addAccount(array $args): mixed
@@ -504,11 +569,18 @@ final class ToolCatalog
             }
             return $result;
         } catch (Throwable $e) {
+            // Auto-record FLOOD_WAITs into the cooldown tracker.
+            $sec = UsageTracker::floodSeconds($e);
+            if ($sec !== null && $this->currentSession !== '') {
+                $cat = CategoryMapper::map($this->currentTool)['category'] ?? null;
+                UsageTracker::forSession($this->currentSession)->recordFloodWait($sec, $this->currentTool, $cat);
+            }
             return [
                 '_error' => true,
                 'code' => $e->getCode(),
                 'message' => $e->getMessage(),
                 'class' => \get_class($e),
+                'flood_wait_seconds' => $sec,
             ];
         }
     }

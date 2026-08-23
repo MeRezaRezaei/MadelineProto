@@ -37,6 +37,11 @@ final class ToolCatalogTest extends TestCase
         self::assertContains('auth.logOut', $names);
         self::assertContains('account.deleteAccount', $names);
         self::assertContains('session.remove_account', $names);
+        // Limits & budgeting layer
+        self::assertContains('session.get_limits', $names);
+        self::assertContains('session.get_quota', $names);
+        self::assertContains('session.check_spam_status', $names);
+        self::assertContains('session.get_cooldowns', $names);
         self::assertGreaterThan(18, \count($names));
     }
 
