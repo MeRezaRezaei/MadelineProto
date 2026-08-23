@@ -42,6 +42,10 @@ final class ToolCatalogTest extends TestCase
         self::assertContains('session.get_quota', $names);
         self::assertContains('session.check_spam_status', $names);
         self::assertContains('session.get_cooldowns', $names);
+        // Generic bot-driving layer
+        self::assertContains('bots.list', $names);
+        self::assertContains('bot.scan', $names);
+        self::assertContains('bot.invoke', $names);
         self::assertGreaterThan(18, \count($names));
     }
 

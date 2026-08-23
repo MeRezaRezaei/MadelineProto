@@ -44,7 +44,7 @@ final class McpServerTest extends TestCase
     public function testToolsList(): void
     {
         $resp = $this->server()->processLine('{"jsonrpc":"2.0","id":3,"method":"tools/list"}');
-        self::assertSame(134, \count($resp['result']['tools']));
+        self::assertSame(137, \count($resp['result']['tools']));
     }
 
     public function testToolsCallUnknownTool(): void

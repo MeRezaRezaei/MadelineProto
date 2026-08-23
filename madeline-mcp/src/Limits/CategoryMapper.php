@@ -27,7 +27,8 @@ final class CategoryMapper
         // Outgoing messages rate (per-chat ~1/s bursts; groups 20/min for bots)
         'message' => [
             'limit_id' => null,
-            'patterns' => ['/^send_(message|media)$/', '/^messages\.(sendMessage|sendMedia|sendMultiMedia|sendInlineBotResult)$/'],
+            // Driving other bots still spends our account's message quota.
+            'patterns' => ['/^send_(message|media)$/', '/^bot\.invoke$/', '/^messages\.(sendMessage|sendMedia|sendMultiMedia|sendInlineBotResult)$/'],
         ],
         // Membership changes (stateful caps: 500 free / 1000 premium)
         'membership' => [

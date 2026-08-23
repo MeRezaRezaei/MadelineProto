@@ -159,6 +159,22 @@ State lives in `cache/usage-<session>.json`; limit cache in
 `cache/telegram-limits-en.json`. Override locations with
 `MADELINE_CACHE_DIR`, language with `LIMITS_LANG`.
 
+## Driving any Telegram bot (generic bridge)
+
+Your user account can operate **any** bot. Instead of generating one MCP tool
+per bot action (tool churn, re-approval, context bloat), three generic tools
+read each bot's structured UI primitives and act on them:
+
+| Tool | Purpose |
+| --- | --- |
+| `bots.list` | Bots present in dialogs, with scan freshness |
+| `bot.scan` | Analyse a bot dialog -> interaction map: `/commands` (from entities & history), reply-keyboard rows, inline buttons (url / callback / switch-inline with msg ids), sample replies, about-text |
+| `bot.invoke` | Run one action and wait for the reply: send a `/command [args]`, tap a reply-keyboard button (sending its text), or press an inline button via `messages.getBotCallbackAnswer`. Returns the bot's response text plus the next inline buttons so the AI can chain multi-step flows |
+
+Interaction maps cache ~6h in `cache/bots/<session>-<bot>.json`; the AI re-scans
+(`force=true`) when a bot ships new buttons — it "sees" updates by diffing maps.
+`bot.invoke` counts toward the message budget category and appears in `_quota`.
+
 ## Tests
 
 ```

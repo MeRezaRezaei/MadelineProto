@@ -13,6 +13,7 @@ use MadelineMcp\Settings\SettingsCatalog;
 use MadelineMcp\Limits\CategoryMapper;
 use MadelineMcp\Limits\LimitsCatalog;
 use MadelineMcp\Limits\UsageTracker;
+use MadelineMcp\Bots\BotCatalog;
 use Throwable;
 
 /**
@@ -31,6 +32,7 @@ final class ToolCatalog
         private readonly ApiClient $client,
         private readonly SettingsCatalog $settings = new SettingsCatalog(),
         private readonly LimitsCatalog $limits = new LimitsCatalog(),
+        private readonly BotCatalog $bots = new BotCatalog(),
     ) {
     }
 
@@ -133,7 +135,7 @@ final class ToolCatalog
     /** The full list of tools advertised to the client. */
     public function all(): array
     {
-        return array_merge($this->settings->tools(), $this->limits->tools(), [
+        return array_merge($this->settings->tools(), $this->limits->tools(), $this->bots->tools(), [
             [
                 'name' => 'list_accounts',
                 'description' => 'List all configured Telegram accounts/sessions and their login state.',
@@ -301,6 +303,10 @@ final class ToolCatalog
         $guard = $this->guard($name, $args);
         if ($guard !== null) {
             return $guard;
+        }
+
+        if ($this->bots->has($name)) {
+            return $this->twrap(fn () => $this->bots->dispatch($name, $args, $this->client));
         }
 
         if ($this->limits->has($name)) {
