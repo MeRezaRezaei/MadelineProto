@@ -57,7 +57,7 @@ database (read back via `getSettings()`). This means accounts survive server
 restarts with zero side-car files.
 
 1. **`list_accounts`** – List every account from the on-disk MadelineProto session databases, including `api_id` and current login state.
-2. **`add_account`** – Send `session_name`, `api_id`, and `api_hash`; they are written straight into that account's MadelineProto session database (no external file).
+2. **`add_account`** – Send `session_name`; `api_id`/`api_hash` are optional and inherited from the primary session database (one Telegram app key, many accounts). They are written straight into that account's MadelineProto session database (no external file).
 3. **`start_login`** – Trigger the login sequence using a `bot_token` or `phone`.
 4. **`submit_login_code`** – Submit the SMS/Telegram code to finalize login.
 

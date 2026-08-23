@@ -16,9 +16,13 @@ use RuntimeException;
  *
  * Account configuration (api_id / api_hash) is intentionally NOT kept in any
  * external JSON file. It is persisted by MadelineProto itself inside each
- * session's own database (the sessions/<name>/ directory). The list of accounts
- * is simply the set of session directories on disk, and the api keys are read
- * back from the session database via getSettings().
+ * session's own database (the sessions/<name>/ directory).
+ *
+ * A single "primary" session stores one Telegram *application* api key. Every
+ * additional account inherits that same app key (Telegram apps use one
+ * api_id/api_hash across many account logins), so the user only supplies the
+ * key once. The list of accounts is simply the set of session directories on
+ * disk, and each account's api key is read back from its session database.
  */
 final class ApiClient
 {
@@ -26,8 +30,7 @@ final class ApiClient
 
     /**
      * In-memory fallback for api keys supplied via add_account / env in the
-     * current process. Only used until the session database has been written
-     * (e.g. before the first login of a freshly added account).
+     * current process. Only used until the session database has been written.
      */
     private array $configs = [];
 
@@ -57,12 +60,18 @@ final class ApiClient
     }
 
     /**
-     * Register an account. The api_id / api_hash are written into the
-     * MadelineProto session database so they survive restarts; no external
-     * JSON registry is used.
+     * Register an account. If api_id / api_hash are omitted they are inherited
+     * from the primary session database (one app key, many accounts). The
+     * resolved keys are written into the account's MadelineProto session
+     * database so they survive restarts; no external JSON registry is used.
      */
-    public function addAccountConfig(string $sessionName, int $apiId, string $apiHash): void
-    {
+    public function addAccountConfig(
+        string $sessionName,
+        ?int $apiId = null,
+        ?string $apiHash = null,
+    ): void {
+        [$apiId, $apiHash] = $this->resolveAppCredentials($apiId, $apiHash);
+
         $this->configs[$sessionName] = [
             'api_id' => $apiId,
             'api_hash' => $apiHash,
@@ -71,6 +80,56 @@ final class ApiClient
         // Persist into the MadelineProto session database. Constructing the API
         // with the AppInfo settings serializes the api keys into sessions/<name>/.
         $this->buildApi($sessionName, $apiId, $apiHash);
+    }
+
+    /**
+     * Resolve the app api_id / api_hash, inheriting the single shared key from
+     * the primary session database when not explicitly supplied.
+     *
+     * Precedence: explicit args -> default session DB -> env -> any session DB.
+     */
+    private function resolveAppCredentials(?int $apiId, ?string $apiHash): array
+    {
+        if ($apiId !== null && $apiHash !== null && $apiId > 0 && $apiHash !== '') {
+            return [$apiId, $apiHash];
+        }
+
+        // 1) Default (primary) session database.
+        $primaryPath = $this->sessionsDir . '/' . $this->defaultSession;
+        if (\is_dir($primaryPath)) {
+            try {
+                $app = $this->api($this->defaultSession)->getSettings()->getAppInfo();
+                if ($app->getApiId() > 0 && $app->getApiHash() !== '') {
+                    return [$app->getApiId(), $app->getApiHash()];
+                }
+            } catch (Throwable $e) {
+                // fall through
+            }
+        }
+
+        // 2) Environment variables.
+        $envId = (int) \getenv('API_ID');
+        $envHash = (string) \getenv('API_HASH');
+        if ($envId > 0 && $envHash !== '') {
+            return [$envId, $envHash];
+        }
+
+        // 3) Any existing session database (they all share the same app key).
+        foreach ($this->discoverSessions() as $name) {
+            try {
+                $app = $this->api($name)->getSettings()->getAppInfo();
+                if ($app->getApiId() > 0 && $app->getApiHash() !== '') {
+                    return [$app->getApiId(), $app->getApiHash()];
+                }
+            } catch (Throwable $e) {
+                // skip sessions we cannot read
+            }
+        }
+
+        throw new RuntimeException(
+            "No api_id/api_hash supplied and no existing session database found. " .
+            "Add the primary account first (or set API_ID/API_HASH)."
+        );
     }
 
     /**

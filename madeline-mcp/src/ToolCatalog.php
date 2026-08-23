@@ -74,12 +74,12 @@ final class ToolCatalog
             ],
             [
                 'name' => 'add_account',
-                'description' => 'Add a new Telegram API account to the MCP server configuration.',
+                'description' => 'Add a Telegram account. If api_id/api_hash are omitted they are inherited from the primary session database (one app key, many accounts).',
                 'inputSchema' => self::objectSchema([
                     'session_name' => self::str('Unique identifier for this session.'),
-                    'api_id' => self::int('Telegram app api_id.'),
-                    'api_hash' => self::str('Telegram app api_hash.'),
-                ], ['session_name', 'api_id', 'api_hash']),
+                    'api_id' => self::int('Telegram app api_id (optional; inherited from the primary session if omitted).'),
+                    'api_hash' => self::str('Telegram app api_hash (optional; inherited from the primary session if omitted).'),
+                ], ['session_name']),
             ],
             [
                 'name' => 'start_login',
@@ -254,8 +254,10 @@ final class ToolCatalog
     private function addAccount(array $args): mixed
     {
         return $this->twrap(function () use ($args) {
-            $this->client->addAccountConfig($args['session_name'], $args['api_id'], $args['api_hash']);
-            return ['status' => 'Account added and persisted to the MadelineProto session database. You can now start_login.'];
+            $apiId = isset($args['api_id']) ? (int) $args['api_id'] : null;
+            $apiHash = isset($args['api_hash']) ? (string) $args['api_hash'] : null;
+            $this->client->addAccountConfig($args['session_name'], $apiId, $apiHash);
+            return ['status' => 'Account added (api key inherited from primary session database if not supplied). You can now start_login.'];
         });
     }
 
