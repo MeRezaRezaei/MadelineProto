@@ -21,10 +21,18 @@ final class ToolCatalogTest extends TestCase
         $tools = $this->catalog()->all();
         $names = \array_column($tools, 'name');
         self::assertSame([
+            'list_accounts',
+            'add_account',
+            'start_login',
+            'submit_login_code',
+            'submit_password',
             'get_login_state',
             'get_me',
             'list_dialogs',
             'send_message',
+            'send_media',
+            'download_media',
+            'delete_messages',
             'read_history',
             'resolve_peer',
             'search_messages',

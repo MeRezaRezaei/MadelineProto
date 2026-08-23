@@ -1,0 +1,41 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+$autoloadPath1 = __DIR__ . '/../../vendor/autoload.php';
+$autoloadPath2 = dirname(__DIR__, 4) . '/vendor/autoload.php';
+
+if (file_exists($autoloadPath1)) {
+    require_once $autoloadPath1;
+} elseif (file_exists($autoloadPath2)) {
+    require_once $autoloadPath2;
+} else {
+    echo "Error: Cannot find vendor/autoload.php. Please run 'composer install'.\n";
+    exit(1);
+}
+
+use MadelineMcp\ApiClient;
+
+echo "=== MadelineProto MCP Interactive Login ===\n\n";
+
+if (!getenv('API_ID') || !getenv('API_HASH')) {
+    echo "Error: API_ID and API_HASH environment variables are required.\n";
+    echo "Usage: API_ID=123 API_HASH=abc php madeline-mcp-login\n";
+    exit(1);
+}
+
+$session = getenv('SESSION') ?: 'madeline-mcp';
+echo "Using session target: $session\n\n";
+
+$apiId = (int) getenv('API_ID');
+$apiHash = (string) getenv('API_HASH');
+
+$client = new ApiClient($session);
+$client->addAccountConfig($session, $apiId, $apiHash);
+
+// Invoking start() in a CLI SAPI inherently triggers MadelineProto's interactive stdio prompts (Phone/Code).
+$client->api($session)->start();
+
+echo "\n\n✅ Login complete! The session has been saved safely.\n";
+echo "You can now configure and start the MCP server without it blocking on authentication.\n";

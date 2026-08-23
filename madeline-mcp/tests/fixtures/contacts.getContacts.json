@@ -1,0 +1,11 @@
+{
+    "_": "contacts.contacts",
+    "contacts": [
+        { "user_id": 123456789, "mutual_contact": true },
+        { "user_id": 987654321, "mutual_contact": false }
+    ],
+    "users": [
+        { "_": "user", "id": 123456789, "first_name": "Alice" },
+        { "_": "user", "id": 987654321, "first_name": "Bob" }
+    ]
+}

@@ -34,7 +34,7 @@ final class ProtocolTest extends TestCase
         );
         $text = $resp['result']['content'][0]['text'];
         self::assertStringContainsString('_error', $text);
-        self::assertStringContainsString('API_ID', $text);
+        self::assertStringContainsString('is not configured', $text);
     }
 
     public function testToolsCallGetMeReturnsErrorShapeWhenNoCreds(): void

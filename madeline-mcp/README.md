@@ -17,8 +17,13 @@ MCP-capable AI client.
 3. Run the server:
    `php madeline-mcp/bin/madeline-mcp`
 
-For a user account, log in interactively on first run (QR code or phone code);
-the session is persisted in the session file.
+For a user account, you must log in interactively **before** attaching it to an MCP client, since MCP takes over standard input/output. Use the dedicated login script:
+
+```bash
+API_ID=xxx API_HASH=yyy php madeline-mcp/bin/madeline-mcp-login
+```
+
+Follow the CLI prompts (QR code or phone/SMS code). The session is persisted to `madeline-mcp` (or your custom `SESSION` env var), and you can then safely run the main server.
 
 ## MCP wiring
 
@@ -41,7 +46,16 @@ can launch it directly:
 }
 ```
 
-## Tools
+## Multi-Account & Dynamic Login
+
+The MCP server fully supports managing multiple sessions simultaneously.
+
+1. **`list_accounts`** – View all registered sessions.
+2. **`add_account`** – Send `session_name`, `api_id`, and `api_hash` to provision an account without touching environment variables.
+3. **`start_login`** – Trigger the login sequence using a `bot_token` or `phone`.
+4. **`submit_login_code`** – Submit the SMS/Telegram code to finalize login.
+
+All functional tools (`send_message`, `read_history`, `call_method`, etc.) now optionally accept a `session_name` argument to target a specific account. If omitted, they default to the primary `madeline-mcp` session.
 
 High-level, ergonomic tools:
 
@@ -51,6 +65,9 @@ High-level, ergonomic tools:
 | `get_me` | Logged-in account details |
 | `list_dialogs` | Recent chats (peer ids) |
 | `send_message` | Send text to any peer |
+| `send_media` | Send a local file / media to a peer |
+| `download_media` | Download media from a message to a local file |
+| `delete_messages` | Delete one or more messages in a chat |
 | `read_history` | Recent messages of a chat |
 | `resolve_peer` | Resolve id / username / @username / phone |
 | `search_messages` | Full-text search inside a chat |

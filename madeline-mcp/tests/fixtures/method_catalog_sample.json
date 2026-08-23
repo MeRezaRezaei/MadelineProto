@@ -1,0 +1,16 @@
+{
+    "messages.sendMessage": {
+        "type": "Updates",
+        "params": {
+            "peer": { "type": "InputPeer" },
+            "message": { "type": "string" },
+            "random_id": { "type": "long" }
+        }
+    },
+    "users.getUsers": {
+        "type": "Vector<User>",
+        "params": {
+            "id": { "type": "Vector of InputUser" }
+        }
+    }
+}
