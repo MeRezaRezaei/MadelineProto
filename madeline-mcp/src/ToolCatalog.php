@@ -713,14 +713,17 @@ final class ToolCatalog
     private function listMethods(array $args): array
     {
         $ns = $args['namespace'] ?? null;
-        $byMethod = $this->tl()->getMethods()->by_method ?? [];
+        $methods = $this->tl()->getMethods();
         $out = [];
-        foreach ($byMethod as $method => $def) {
-            if ($ns !== null && \str_starts_with($method, $ns.'.')) {
-                $out[$method] = $this->methodShape($def);
-            } elseif ($ns === null) {
-                $out[$method] = $this->methodShape($def);
+        foreach ($methods->by_method as $method => $id) {
+            if ($ns !== null && !\str_starts_with($method, $ns.'.')) {
+                continue;
             }
+            $def = $methods->by_id[$id] ?? null;
+            if ($def === null) {
+                continue;
+            }
+            $out[$method] = $this->methodShape($def);
         }
         \ksort($out);
         return $out;
