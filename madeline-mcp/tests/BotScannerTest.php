@@ -105,4 +105,13 @@ final class BotScannerTest extends TestCase
         self::assertSame("part one\n---\npage 1\n---\npage 2", $res['response']);
         self::assertSame('edit', $res['events'][2]['type']);
     }
+
+    public function testButtonStillLive(): void
+    {
+        $live = [['_'=>'message','id'=>9,'out'=>false,'reply_markup'=>['rows'=>[['buttons'=>[
+            ['_'=>'keyboardButtonCallback','text'=>'Next','data'=>'pg3']]]]]]];
+        self::assertTrue(BotInvoker::buttonStillLive($live, 'Next', base64_encode('pg3')));
+        self::assertFalse(BotInvoker::buttonStillLive($live, 'Next', base64_encode('pg2'))); // edited away
+        self::assertFalse(BotInvoker::buttonStillLive([], 'Next', base64_encode('pg3')));
+    }
 }
