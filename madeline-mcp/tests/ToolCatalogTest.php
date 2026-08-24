@@ -18,7 +18,7 @@ final class ToolCatalogTest extends TestCase
 
     public function testAdvertisesExpectedTools(): void
     {
-        $tools = $this->catalog()->all();
+        $tools = $this->catalog()->all('all');
         $names = \array_column($tools, 'name');
         // The 18 ergonomic tools must still be present.
         foreach ([
@@ -72,5 +72,30 @@ final class ToolCatalogTest extends TestCase
         $result = $this->catalog()->call('call_method', []);
         self::assertArrayHasKey('_error', $result);
         self::assertSame('method is required', $result['message']);
+    }
+
+    public function testDefaultModeIsCompatibleAndHidesRawLayer(): void
+    {
+        $names = \array_column($this->catalog()->all(), 'name');
+        self::assertContains('list_conversations', $names);
+        self::assertContains('set_tool_mode', $names);
+        self::assertNotContains('account.updateProfile', $names, 'raw settings layer must be hidden in compatible mode');
+        self::assertNotContains('call_method', $names, 'raw method layer must be hidden in compatible mode');
+    }
+
+    public function testAllModeExposesRawLayer(): void
+    {
+        $names = \array_column($this->catalog()->all('all'), 'name');
+        self::assertContains('account.updateProfile', $names);
+        self::assertContains('call_method', $names);
+        self::assertContains('list_conversations', $names);
+    }
+
+    public function testAdvancedModeShowsRawLayerOnly(): void
+    {
+        $names = \array_column($this->catalog()->all('advanced'), 'name');
+        self::assertContains('call_method', $names);
+        self::assertContains('set_tool_mode', $names);
+        self::assertNotContains('list_conversations', $names, 'compatible tools hidden in advanced mode');
     }
 }

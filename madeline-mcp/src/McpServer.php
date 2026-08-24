@@ -21,11 +21,14 @@ final class McpServer
     public const PROTOCOL_VERSION = '2024-11-05';
 
     private string $buffer = '';
+    private string $mode;
 
     public function __construct(
         private readonly ApiClient $client,
         private readonly ToolCatalog $catalog,
+        ?string $mode = null,
     ) {
+        $this->mode = $mode ?? (\getenv('MADELINE_MODE') ?: 'compatible');
     }
 
     public function run(): void
@@ -99,7 +102,7 @@ final class McpServer
             'notifications/initialized' => null,
             'ping' => $this->respond($id, new \stdClass()),
             'tools/list' => $this->respond($id, [
-                'tools' => $this->catalog->all(),
+                'tools' => $this->catalog->all($this->mode),
             ]),
             'tools/call' => $this->callTool($id, $params),
             default => $this->error($id, -32601, "Method not found: $method"),
@@ -113,6 +116,21 @@ final class McpServer
 
         if (!\is_string($name) || !\is_array($args)) {
             return $this->error($id, -32602, 'Invalid params: name and arguments required');
+        }
+
+        if ($name === 'set_tool_mode') {
+            $m = $args['mode'] ?? '';
+            if (!\in_array($m, ['compatible', 'advanced', 'all'], true)) {
+                return $this->error($id, -32602, 'Invalid mode: must be compatible | advanced | all');
+            }
+            $this->mode = $m;
+
+            return $this->respond($id, [
+                'content' => [['type' => 'text', 'text' => \json_encode([
+                    'mode' => $this->mode,
+                    'note' => 'Tool surface switched. Call tools/list again to see the new set of tools.',
+                ], \JSON_UNESCAPED_SLASHES)]],
+            ]);
         }
 
         $result = $this->catalog->call($name, $args);

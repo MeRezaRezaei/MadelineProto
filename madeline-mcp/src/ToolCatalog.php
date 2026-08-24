@@ -37,6 +37,33 @@ final class ToolCatalog
     ) {
     }
 
+    private const MODE_COMPATIBLE = 'compatible';
+    private const MODE_ADVANCED = 'advanced';
+    private const MODE_ALL = 'all';
+    private const TIER_COMPATIBLE = 'compatible';
+    private const TIER_ADVANCED = 'advanced';
+    private const TIER_META = 'meta';
+
+    /**
+     * True when a tool tier is visible under the requested surface mode.
+     * "all" shows everything. Compatible/advanced show their own tier plus the
+     * always-available mode switcher (meta).
+     */
+    private function inMode(string $tier, string $mode): bool
+    {
+        if ($mode === self::MODE_ALL) {
+            return true;
+        }
+        if ($tier === self::TIER_META) {
+            return true;
+        }
+        if ($mode === self::MODE_ADVANCED) {
+            return $tier === self::TIER_ADVANCED;
+        }
+
+        return $tier === self::TIER_COMPATIBLE;
+    }
+
     /** Cooldown guard: returns an error payload when a lock is active. */
     private function guard(string $name, array $args): ?array
     {
@@ -133,10 +160,17 @@ final class ToolCatalog
         return self::str('Optional session name. Defaults to the primary background session.');
     }
 
-    /** The full list of tools advertised to the client. */
-    public function all(): array
+    /**
+     * The full tool list, filtered by surface mode.
+     *
+     * Modes: "compatible" (default) shows only the user-like Telegram tools and
+     * hides the raw settings/method layer; "advanced" shows the raw
+     * MadelineProto/Telegram method layer (full objects); "all" shows both.
+     * set_tool_mode is always advertised so the AI can switch surfaces.
+     */
+    public function all(string $mode = self::MODE_COMPATIBLE): array
     {
-        return array_merge($this->settings->tools(), $this->limits->tools(), $this->bots->tools(), [
+        $raw = array_merge($this->settings->tools(), $this->limits->tools(), $this->bots->tools(), [
             [
                 'name' => 'list_accounts',
                 'description' => 'List all configured Telegram accounts/sessions and their login state.',
@@ -276,7 +310,7 @@ final class ToolCatalog
             ],
             [
                 'name' => 'list_methods',
-                'description' => 'List every callable Telegram method with its parameter shape (bot and user methods). Optional namespace filter (e.g. "messages", "users", "channels", "account").',
+                'description' => '[ADVANCED] List every callable Telegram method with its parameter shape (bot and user methods). Optional namespace filter (e.g. "messages", "users", "channels", "account"). Invoke any with call_method to receive the FULL raw Telegram object. Prefer the Compatible tools for everyday tasks.',
                 'inputSchema' => self::objectSchema([
                     'namespace' => self::str('Optional namespace prefix filter.'),
                 ]),
@@ -288,7 +322,7 @@ final class ToolCatalog
             ],
             [
                 'name' => 'list_conversations',
-                'description' => 'List conversations resolved to names with last-message preview and last-activity, sorted most-recent first. Each call returns a frozen-in-time sort_token: pass it back to get the NEXT slice of the SAME order (Telegram reshuffles positions constantly, so never re-list to paginate). Omit sort_token for a fresh current-moment sort. scope: "personal" (private 1-on-1 human chats), "all", or a numeric folder id.',
+                'description' => 'List conversations resolved to names with last-message preview and last-activity, sorted most-recent first. Each call returns a frozen-in-time sort_token: pass it back to get the NEXT slice of the SAME order (Telegram reshuffles positions constantly, so never re-list to paginate). Omit sort_token for a fresh current-moment sort. scope: "personal" (private 1-on-1 human chats), "all", or a numeric folder id. [Compatible] Telegram IDs (user id, chat id, message id) are GLOBALLY STATIC and unique across all accounts — rely on them as stable references. The sort_token is a short-lived server cache (expires after a few minutes); if it reports expiry, call without sort_token for a fresh current-moment snapshot.',
                 'inputSchema' => self::objectSchema([
                     'session_name' => self::sessionParam(),
                     'scope' => self::str('"personal", "all", or a numeric folder id.'),
@@ -299,7 +333,7 @@ final class ToolCatalog
             ],
             [
                 'name' => 'get_conversation',
-                'description' => 'Read a conversation (peer id, username, or @username) as a clean, projected message list: id, date, sender, text/media, edited, reply. Returns a frozen-in-time sort_token; pass it back to load OLDER messages in the same stable order. Omit sort_token for the most recent messages. Descending into a chat means the parent listing is no longer needed.',
+                'description' => 'Read a conversation (peer id, username, or @username) as a clean, projected message list: id, date, sender, text/media, edited, reply. Returns a frozen-in-time sort_token; pass it back to load OLDER messages in the same stable order. Omit sort_token for the most recent messages. Descending into a chat means the parent listing is no longer needed. [Compatible] Telegram IDs are GLOBALLY STATIC across all accounts — safe to rely on. The sort_token is a short-lived server cache; if it expires, call without it for a fresh current-moment snapshot.',
                 'inputSchema' => self::objectSchema([
                     'session_name' => self::sessionParam(),
                     'peer' => self::str('Peer id, username, or @username.'),
@@ -309,7 +343,7 @@ final class ToolCatalog
             ],
             [
                 'name' => 'call_method',
-                'description' => 'Call ANY Telegram method by dotted name. Use list_methods to discover names and params.',
+                'description' => '[ADVANCED] Call ANY Telegram method by dotted name and receive the COMPLETE raw object Telegram returns (every field). Use list_methods to discover names/params. Only use when the Compatible tools do not expose what you need.',
                 'inputSchema' => self::objectSchema([
                     'session_name' => self::sessionParam(),
                     'method' => self::str('Dotted method name, e.g. messages.sendMessage.'),
@@ -320,6 +354,46 @@ final class ToolCatalog
                 ], ['method']),
             ],
         ]);
+
+        $advancedNames = ['list_methods', 'call_method'];
+        $curatedNames = [
+            'list_accounts', 'add_account', 'start_login', 'submit_login_code',
+            'submit_password', 'get_login_state', 'get_me', 'list_dialogs',
+            'send_message', 'send_media', 'download_media', 'delete_messages',
+            'read_history', 'resolve_peer', 'search_messages', 'get_full_chat_info',
+            'list_folders', 'list_conversations', 'get_conversation',
+        ];
+
+        $tagged = array_map(function (array $t) use ($curatedNames, $advancedNames): array {
+            if ($t['name'] === 'set_tool_mode') {
+                $t['tier'] = self::TIER_META;
+            } elseif (\in_array($t['name'], $advancedNames, true)) {
+                $t['tier'] = self::TIER_ADVANCED;
+            } elseif (\in_array($t['name'], $curatedNames, true)) {
+                $t['tier'] = self::TIER_COMPATIBLE;
+            } else {
+                $t['tier'] = self::TIER_ADVANCED; // settings/limits/bots raw layer
+            }
+
+            return $t;
+        }, $raw);
+
+        $setMode = [
+            'name' => 'set_tool_mode',
+            'tier' => self::TIER_META,
+            'description' => 'Switch the tool surface the MCP advertises. "compatible" (default): only user-like Telegram tools (folders, conversations, messages, send/read); hides raw settings/methods. "advanced": the raw MadelineProto/Telegram method layer (full objects). "all": both. Call tools/list again after switching to see the new surface.',
+            'inputSchema' => self::objectSchema([
+                'mode' => [
+                    'type' => 'string',
+                    'enum' => [self::MODE_COMPATIBLE, self::MODE_ADVANCED, self::MODE_ALL],
+                    'description' => 'Target tool surface: compatible | advanced | all.',
+                ],
+            ], ['mode']),
+        ];
+
+        $all = array_merge($tagged, [$setMode]);
+
+        return array_values(array_filter($all, fn (array $t): bool => $this->inMode($t['tier'] ?? self::TIER_COMPATIBLE, $mode)));
     }
 
     public function call(string $name, array $args): mixed

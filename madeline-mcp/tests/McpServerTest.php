@@ -44,7 +44,25 @@ final class McpServerTest extends TestCase
     public function testToolsList(): void
     {
         $resp = $this->server()->processLine('{"jsonrpc":"2.0","id":3,"method":"tools/list"}');
-        self::assertSame(138, \count($resp['result']['tools']));
+        self::assertSame(20, \count($resp['result']['tools']));
+    }
+
+    public function testToolsListAllModeExposesRawLayer(): void
+    {
+        $server = $this->server();
+        $server->processLine('{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"set_tool_mode","arguments":{"mode":"all"}}}');
+        $resp = $server->processLine('{"jsonrpc":"2.0","id":4,"method":"tools/list"}');
+        $names = \array_column($resp['result']['tools'], 'name');
+        self::assertContains('call_method', $names);
+        self::assertContains('list_conversations', $names);
+    }
+
+    public function testSetToolModeRejectsBadMode(): void
+    {
+        $resp = $this->server()->processLine(
+            '{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"set_tool_mode","arguments":{"mode":"bogus"}}}',
+        );
+        self::assertSame(-32602, $resp['error']['code']);
     }
 
     public function testToolsCallUnknownTool(): void

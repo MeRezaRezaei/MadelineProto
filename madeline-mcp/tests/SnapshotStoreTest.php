@@ -62,4 +62,25 @@ final class SnapshotStoreTest extends TestCase
         $this->assertNull(SnapshotStore::take('deadbeef', 10));
         $this->assertFalse(SnapshotStore::exists('deadbeef'));
     }
+
+    public function testTokenExpiresAfterTtl(): void
+    {
+        $rows = array_map(fn ($i) => ['id' => $i], range(1, 3));
+        $token = SnapshotStore::create($rows, []);
+
+        // Backdate the expiry via reflection to exercise the TTL path.
+        $ref = new \ReflectionClass(SnapshotStore::class);
+        $store = $ref->getProperty('store');
+        $store->setAccessible(true);
+        $v = $store->getValue();
+        $v[$token]['expires'] = \time() - 1;
+        $store->setValue($v);
+
+        self::assertFalse(SnapshotStore::exists($token), 'expired token must be gone');
+        self::assertNull(SnapshotStore::take($token, 1), 'expired token take must return null');
+
+        // A freshly created token is still live.
+        $live = SnapshotStore::create($rows, []);
+        self::assertTrue(SnapshotStore::exists($live));
+    }
 }
