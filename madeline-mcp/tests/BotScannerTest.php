@@ -67,28 +67,42 @@ final class BotScannerTest extends TestCase
         self::assertSame(13, BotScanner::msgIdFor('Vote A', $map));
     }
 
-    public function testPickReplyDetectsEditsNotOnlyNewMessages(): void
+    public function testCollectUntilQuietStopsOnQuietWindowAndMerges(): void
     {
-        $baseline = ['id' => 50, 'edit_date' => 100, 'text' => 'Choose a bot:'];
-        $msgs = [
-            ['_' => 'message', 'id' => 50, 'out' => false, 'date' => 90, 'edit_date' => 100, 'message' => 'Choose a bot:'],
+        // Simulated clock: deltas appear on first fetch only; quiet window then closes.
+        $polls = [
+            [['_'=>'message','id'=>5,'out'=>false,'message'=>'hello']],
+            [['_'=>'message','id'=>5,'out'=>false,'message'=>'hello']],
+            [['_'=>'message','id'=>5,'out'=>false,'message'=>'hello']],
         ];
-        // Nothing changed yet.
-        self::assertNull(BotInvoker::pickReply($msgs, $baseline));
+        $res = BotInvoker::collectUntilQuiet(
+            static function () use (&$polls) { return \array_shift($polls) ?? []; },
+            [],     // baseline messages (empty => id 5 is NEW)
+            15.0,   // max wait seconds
+            2.0,    // quiet seconds
+            0       // poll interval 0 for tests (no sleeping)
+        );
+        self::assertCount(1, $res['events']);
+        self::assertSame('new', $res['events'][0]['type']);
+        self::assertSame('hello', $res['response']);
+    }
 
-        // Pagination edits the SAME message -> must be detected.
-        $edited = [['_' => 'message', 'id' => 50, 'out' => false, 'date' => 90, 'edit_date' => 200, 'message' => 'Choose a bot from the list below (page 2)']];
-        self::assertSame(200, BotInvoker::pickReply($edited, $baseline)['edit_date']);
-
-        // Same id, no edit_date but text changed -> also detected.
-        $silentEdit = [['_' => 'message', 'id' => 50, 'out' => false, 'date' => 90, 'edit_date' => 100, 'message' => 'page 2 content']];
-        self::assertNotNull(BotInvoker::pickReply($silentEdit, $baseline));
-
-        // Brand-new message wins.
-        $fresh = [['_'=>'message','id'=>51,'out'=>false,'date'=>95,'message'=>'hi']];
-        self::assertSame(51, BotInvoker::pickReply($fresh, $baseline)['id']);
-
-        // Outgoing-only history: nothing.
-        self::assertNull(BotInvoker::pickReply([['_'=>'message','id'=>52,'out'=>true,'date'=>96,'message'=>'/mybots']], $baseline));
+    public function testCollectUntilQuietMergesMultipleMessagesAndEdits(): void
+    {
+        $polls = [
+            [['_'=>'message','id'=>5,'out'=>false,'message'=>'part one'],
+             ['_'=>'message','id'=>6,'out'=>false,'message'=>'page 1']],
+            [['_'=>'message','id'=>6,'out'=>false,'message'=>'page 1']], // no change
+            [['_'=>'message','id'=>6,'out'=>false,'message'=>'page 2']], // edit
+            [['_'=>'message','id'=>6,'out'=>false,'message'=>'page 2']],
+        ];
+        $base = [['_'=>'message','id'=>4,'out'=>false,'message'=>'old menu']];
+        $res = BotInvoker::collectUntilQuiet(
+            static function () use (&$polls) { return \array_shift($polls) ?? []; },
+            $base, 15.0, 2.0, 0
+        );
+        self::assertCount(3, $res['events']); // new(5), new(6), edit(6)
+        self::assertSame("part one\n---\npage 1\n---\npage 2", $res['response']);
+        self::assertSame('edit', $res['events'][2]['type']);
     }
 }

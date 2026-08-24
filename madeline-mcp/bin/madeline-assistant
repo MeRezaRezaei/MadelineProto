@@ -1,0 +1,151 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+use MadelineMcp\Assistant\AssistantBot;
+use MadelineMcp\Assistant\OmniClient;
+use MadelineMcp\Assistant\ToolBridge;
+use MadelineMcp\ApiClient;
+
+require dirname(__DIR__, 2) . '/vendor/autoload.php'; // MadelineProto itself
+spl_autoload_register(static function (string $class): void {
+    if (str_starts_with($class, 'MadelineMcp\\')) {
+        $rel = str_replace('\\', '/', substr($class, strlen('MadelineMcp\\')));
+        $f = __DIR__ . '/../src/' . $rel . '.php';
+        if (is_file($f)) {
+            require $f;
+        }
+    }
+});
+
+$cmd = $argv[1] ?? 'help';
+const BF = 'botfather';
+$TOKEN_RE = '/(\d{6,}:[A-Za-z0-9_-]{30,})/';
+
+function out(string $s): void { fwrite(STDOUT, $s . "\n"); }
+function fail(string $s): never { fwrite(STDERR, "ERROR: {$s}\n"); exit(1); }
+
+/** Invoke a command on BotFather from the OWNER session, return sanitized result. */
+function bfInvoke(ApiClient $api, array $args): array
+{
+    $catalog = new MadelineMcp\ToolCatalog($api);
+    $res = $catalog->call('bot.invoke', array_merge(['session_name' => null, 'peer' => BF], $args));
+    $d = json_decode((string) $res, true);
+    if (!is_array($d)) {
+        fail('bot.invoke returned non-JSON: ' . substr((string) $res, 0, 200));
+    }
+    return $d;
+}
+
+/** Extract the last text reply the owner received from BotFather after an invoke. */
+function bfReplyText(array $inv): string
+{
+    $parts = [];
+    $resp = $inv['response'] ?? null;
+    if (is_string($resp) && $resp !== '') {
+        $parts[] = $resp;
+    }
+    $cb = $inv['callback_answer'] ?? null;
+    if (is_array($cb)) {
+        $msg = $cb['message'] ?? ($cb['alert_text'] ?? null);
+        if (is_string($msg) && $msg !== '') {
+            $parts[] = $msg;
+        }
+    } elseif (is_string($cb) && $cb !== '') {
+        $parts[] = $cb;
+    }
+    return trim(implode(' | ', $parts));
+}
+
+try {
+    switch ($cmd) {
+        case 'ensure': // ------------------------------------------------------
+            $username = getenv('MADELINE_ASSISTANT_USERNAME') ?: AssistantBot::DEFAULT_USERNAME;
+            $api = new ApiClient();
+            $me = $api->api()->getSelf();
+            $ownerId = (int) $me['id'];
+            out("owner: @{$me['username']} ({$ownerId})");
+
+            // 1) Find or create the assistant bot via BotFather.
+            $token = null;
+            $exists = false;
+            try {
+                $info = $api->api()->getInfo($username);
+                $exists = true; // peer resolves -> bot already exists globally
+                out("bot @{$username} already exists");
+            } catch (Throwable) {
+                out("creating @{$username} via @BotFather...");
+                $r1 = bfInvoke($api, ['action' => '/newbot']);
+                out('BF: ' . mb_substr(bfReplyText($r1), 0, 80));
+                $r2 = bfInvoke($api, ['action' => AssistantBot::BOT_NAME]);
+                out('BF: ' . mb_substr(bfReplyText($r2), 0, 120));
+                $r3 = bfInvoke($api, ['action' => $username]);
+                $txt = bfReplyText($r3) . ' ' . json_encode($r3);
+                if (!preg_match($TOKEN_RE, $txt, $m)) {
+                    fail('BotFather did not return a token: ' . mb_substr(bfReplyText($r3), 0, 200));
+                }
+                $token = $m[1];
+                out("bot created, token captured");
+            }
+
+            // 2) If the bot exists but we lack a token/session: fetch token via /mybots -> API Token.
+            if ($token === null && !is_dir(ApiClient::sessionDir() . '/madeline-assistant')) {
+                $r = bfInvoke($api, ['action' => '/mybots']);
+                out('BF: ' . mb_substr(bfReplyText($r), 0, 60));
+                $r = bfInvoke($api, ['action' => '@' . ltrim($username, '@')]);
+                $r = bfInvoke($api, ['action' => 'API Token']);
+                $blob = json_encode($r);
+                if (preg_match($TOKEN_RE, $blob, $m)) {
+                    $token = $m[1];
+                    out('existing token recovered via API Token button');
+                } else {
+                    fail('could not recover token for existing bot. Reply: ' . mb_substr(bfReplyText($r), 0, 300));
+                }
+            }
+
+            // 3) Bootstrap the bot session (idempotent).
+            $stFile = ApiClient::cacheDir() . '/assistant-state.json';
+            $state = is_file($stFile) ? (json_decode((string) file_get_contents($stFile), true) ?: []) : [];
+            $state['owner_id'] = $ownerId;
+            $state['session'] = 'madeline-assistant';
+            $state['username'] = ltrim($username, '@');
+            $needLogin = !is_dir($api->sessionDir('madeline-assistant'));
+            $needLogin = !is_dir(ApiClient::sessionDir() . '/madeline-assistant');
+            if ($needLogin) {
+                $api->addAccountConfig('madeline-assistant', null, null);
+                $login = $api->api('madeline-assistant')->botLogin((string) $token);
+                out('bot session logged in: ' . json_encode(is_object($login) ? get_class($login) : $login));
+            } else {
+                out('bot session already present');
+            }
+            file_put_contents($stFile, json_encode($state, JSON_PRETTY_PRINT));
+
+            // 4) Suppress map so future default handlers skip this conversation.
+            $botInfo = $api->api('madeline-assistant')->getSelf();
+            $botId = (int) $botInfo['id'];
+            $log = new AssistantBot($api, new OmniClient(), new ToolBridge($api, new MadelineMcp\ToolCatalog($api)));
+            $log->writeSuppressMap($ownerId, $botId);
+            out("suppress map updated: {$ownerId}<->{$botId}");
+            out("\nDone. Start with: bin/madeline-assistant run");
+            break;
+
+        case 'run': // ---------------------------------------------------------
+            $omni = new OmniClient();
+            $api = new ApiClient();
+            $catalog = new MadelineMcp\ToolCatalog($api);
+            $bot = new AssistantBot(
+                $api,
+                $omni,
+                new ToolBridge($api, $catalog),
+                static function (string $m): void { fwrite(STDOUT, '[' . date('H:i:s') . '] ' . $m . "\n"); },
+            );
+            $bot->run();
+            break;
+
+        default:
+            out("usage: bin/madeline-assistant ensure|run\n  ensure  find/create Madeline Assistant bot, login its session, write suppress map\n  run     start the background assistant loop");
+    }
+} catch (Throwable $e) {
+    fail(get_class($e) . ': ' . $e->getMessage());
+}
