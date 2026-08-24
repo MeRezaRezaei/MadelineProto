@@ -181,13 +181,12 @@ final class ResponseSanitizer
             $result['chats'] = $out;
         }
 
-        // Names are now embedded in the projected messages/dialogs. For list
-        // scans the raw reference tables are pure bulk (and a dialogs fetch
-        // already carries previews), so drop them to stay under the proxy cap.
+        // Names are embedded in the projected messages/dialogs, but the
+        // compacted users/chats reference tables are tiny after projection and
+        // useful to keep (ids resolve to names without re-fetching). Only drop
+        // the bulk messages list when dialogs already carry their previews.
         if (isset($result['dialogs'])) {
-            unset($result['messages'], $result['users'], $result['chats']);
-        } elseif (isset($result['messages'])) {
-            unset($result['users'], $result['chats']);
+            unset($result['messages']);
         }
 
         return $result;
