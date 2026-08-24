@@ -15,6 +15,7 @@ use MadelineMcp\Limits\LimitsCatalog;
 use MadelineMcp\Limits\UsageTracker;
 use MadelineMcp\Bots\BotCatalog;
 use Throwable;
+use MadelineMcp\SnapshotStore;
 
 /**
  * Builds and dispatches MCP tools.
@@ -287,23 +288,23 @@ final class ToolCatalog
             ],
             [
                 'name' => 'list_conversations',
-                'description' => 'List conversations resolved to names with last-message preview and last-activity, sorted most-recent first. scope: "personal" (private 1-on-1 human chats), "all", or a numeric folder id.',
+                'description' => 'List conversations resolved to names with last-message preview and last-activity, sorted most-recent first. Each call returns a frozen-in-time sort_token: pass it back to get the NEXT slice of the SAME order (Telegram reshuffles positions constantly, so never re-list to paginate). Omit sort_token for a fresh current-moment sort. scope: "personal" (private 1-on-1 human chats), "all", or a numeric folder id.',
                 'inputSchema' => self::objectSchema([
                     'session_name' => self::sessionParam(),
                     'scope' => self::str('"personal", "all", or a numeric folder id.'),
                     'limit' => self::int('Max rows (default 20, max 50).'),
-                    'offset' => self::int('Rows to skip (default 0).'),
                     'include_bots' => self::bool('Include bot chats (default false).'),
+                    'sort_token' => self::str('Frozen-sort token from a previous call; returns the next slice of the same order. Omit for a fresh sort.'),
                 ]),
             ],
             [
                 'name' => 'get_conversation',
-                'description' => 'Read a conversation (peer id, username, or @username) as a clean, projected message list: id, date, sender, text/media, edited, reply. Avoids raw-TL noise and truncation.',
+                'description' => 'Read a conversation (peer id, username, or @username) as a clean, projected message list: id, date, sender, text/media, edited, reply. Returns a frozen-in-time sort_token; pass it back to load OLDER messages in the same stable order. Omit sort_token for the most recent messages. Descending into a chat means the parent listing is no longer needed.',
                 'inputSchema' => self::objectSchema([
                     'session_name' => self::sessionParam(),
                     'peer' => self::str('Peer id, username, or @username.'),
                     'limit' => self::int('Max messages (default 20, max 100).'),
-                    'offset_id' => self::int('Fetch messages older than this id (default 0 = most recent).'),
+                    'sort_token' => self::str('Frozen-sort token from a previous call; returns the next (older) slice. Omit for the most recent messages.'),
                 ]),
             ],
             [
@@ -653,8 +654,23 @@ final class ToolCatalog
             $session = $args['session_name'] ?? null;
             $scope = $args['scope'] ?? 'personal';
             $limit = min((int) ($args['limit'] ?? 20), 50);
-            $offset = max((int) ($args['offset'] ?? 0), 0);
             $includeBots = (bool) ($args['include_bots'] ?? false);
+            $token = $args['sort_token'] ?? null;
+
+            if (\is_string($token)) {
+                if (!SnapshotStore::exists($token)) {
+                    return ['_error' => true, 'message' => 'sort_token expired or unknown; call without sort_token for a fresh (current-moment) sort.'];
+                }
+                $page = SnapshotStore::take($token, $limit);
+
+                return [
+                    'total' => $page['total'],
+                    'returned' => $page['returned'],
+                    'conversations' => $page['items'],
+                    'sort_token' => $token,
+                    'page_done' => $page['done'],
+                ];
+            }
 
             $api = $this->api($session);
             $raw = $api->messages->getDialogs([
@@ -685,7 +701,7 @@ final class ToolCatalog
 
             $rows = [];
             foreach ($dialogs as $d) {
-                $pid = $pid = $d['peer'] ?? null;
+                $pid = $d['peer'] ?? null;
                 if (!\is_int($pid)) {
                     continue;
                 }
@@ -729,10 +745,16 @@ final class ToolCatalog
             }
 
             \usort($rows, fn ($a, $b) => $b['last_activity'] <=> $a['last_activity']);
-            $total = \count($rows);
-            $rows = \array_slice($rows, $offset, $limit);
+            $newToken = SnapshotStore::create($rows, ['scope' => $scope, 'session' => $session]);
+            $page = SnapshotStore::take($newToken, $limit);
 
-            return ['total' => $total, 'returned' => \count($rows), 'conversations' => $rows];
+            return [
+                'total' => $page['total'],
+                'returned' => $page['returned'],
+                'conversations' => $page['items'],
+                'sort_token' => $newToken,
+                'page_done' => $page['done'],
+            ];
         });
     }
 
@@ -800,8 +822,10 @@ final class ToolCatalog
     }
 
     /**
-     * Read a conversation as a clean, projected message list (server-side
-     * projection keeps the payload small so it is never truncated downstream).
+     * Read a conversation as a clean, projected message list, paginated over a
+     * frozen-in-time snapshot so the AI continues a stable order. Passing the
+     * sort_token back loads OLDER messages; omitting it starts fresh (most
+     * recent). Descending into a chat lets the AI drop the parent listing.
      */
     private function getConversation(array $args): array
     {
@@ -812,70 +836,152 @@ final class ToolCatalog
                 throw new \Exception('peer is required');
             }
             $limit = min((int) ($args['limit'] ?? 20), 100);
-            $offsetId = (int) ($args['offset_id'] ?? 0);
+            $token = $args['sort_token'] ?? null;
+
+            if (\is_string($token)) {
+                if (!SnapshotStore::exists($token)) {
+                    return ['_error' => true, 'message' => 'sort_token expired or unknown; call without sort_token for a fresh (current-moment) sort.'];
+                }
+                $page = SnapshotStore::take($token, $limit);
+                if ($page['done']) {
+                    // Stored window exhausted: transparently extend with older
+                    // messages so pagination keeps returning a stable order.
+                    $meta = SnapshotStore::meta($token);
+                    $oldestId = (int) ($meta['oldest_id'] ?? 0);
+                    if ($oldestId > 0) {
+                        $api = $this->api($session);
+                        $raw = $api->messages->getHistory([
+                            'peer' => $meta['peer'],
+                            'limit' => $limit,
+                            'offset_id' => $oldestId,
+                            'offset_date' => 0,
+                            'add_offset' => 0,
+                            'max_id' => 0,
+                            'min_id' => 0,
+                        ]);
+                        $peerId = (int) ($meta['peer_info']['id'] ?? 0);
+                        $newRows = $this->buildMessageRows($raw, $peerId);
+                        $newOldest = \count($newRows) < $limit ? 0 : $this->minMessageId($newRows, $oldestId);
+                        SnapshotStore::extend($token, $newRows, [
+                            'peer' => $meta['peer'],
+                            'session' => $session,
+                            'oldest_id' => $newOldest,
+                            'peer_info' => $meta['peer_info'],
+                            'true_count' => $meta['true_count'] ?? null,
+                        ]);
+                        $page = SnapshotStore::take($token, $limit);
+                    }
+                }
+
+                return $this->formatConversationPage($page, $token);
+            }
 
             $api = $this->api($session);
             $raw = $api->messages->getHistory([
                 'peer' => $peer,
                 'limit' => $limit,
-                'offset_id' => $offsetId,
+                'offset_id' => 0,
                 'offset_date' => 0,
                 'add_offset' => 0,
                 'max_id' => 0,
                 'min_id' => 0,
             ]);
 
-            $messages = $raw['messages'] ?? [];
-            $users = [];
-            foreach ($raw['users'] ?? [] as $u) {
-                $users[$u['id']] = $u;
-            }
-            $chats = [];
-            foreach ($raw['chats'] ?? [] as $c) {
-                $chats[$c['id']] = $c;
-            }
+            $peerId = $this->resolvePeerId($peer, $raw['users'] ?? [], $raw['chats'] ?? []);
+            [$peerType, $peerName] = $this->resolvePeerInfo((int) $peerId, $raw['users'] ?? [], $raw['chats'] ?? []);
+            $rows = $this->buildMessageRows($raw, (int) $peerId);
+            $oldestId = $this->minMessageId($rows, 0);
+            $newToken = SnapshotStore::create($rows, [
+                'peer' => $peer,
+                'session' => $session,
+                'oldest_id' => $oldestId,
+                'peer_info' => ['id' => $peerId, 'name' => $peerName, 'type' => $peerType],
+                'true_count' => $raw['count'] ?? \count($rows),
+            ]);
+            $page = SnapshotStore::take($newToken, $limit);
 
-            $peerId = $this->resolvePeerId($peer, $users, $chats);
-            [$peerType, $peerName] = $this->resolvePeerInfo((int) $peerId, $users, $chats);
-
-            $rows = [];
-            foreach ($messages as $m) {
-                $fromId = $m['from_id'] ?? $peerId;
-                if (!\is_int($fromId)) {
-                    $fromId = $peerId;
-                }
-                [$ftype, $fname] = $this->resolvePeerInfo((int) $fromId, $users, $chats);
-
-                $text = '';
-                $mediaType = 'text';
-                if (isset($m['message']) && \is_string($m['message']) && $m['message'] !== '') {
-                    $text = $m['message'];
-                } elseif (isset($m['media'])) {
-                    $mediaType = 'media:' . ($m['media']['_'] ?? 'unknown');
-                    $text = $m['message'] ?? '';
-                } elseif (isset($m['action'])) {
-                    $mediaType = 'action:' . ($m['action']['_'] ?? 'unknown');
-                }
-
-                $rows[] = [
-                    'id' => $m['id'],
-                    'date' => $m['date'] ?? 0,
-                    'out' => (bool) ($m['out'] ?? false),
-                    'from' => ['id' => $fromId, 'name' => $fname, 'type' => $ftype],
-                    'media_type' => $mediaType,
-                    'text' => $text,
-                    'edited' => isset($m['edit_date']),
-                    'reply_to' => ($m['reply_to']['reply_to_msg_id'] ?? null),
-                ];
-            }
-
-            return [
-                'peer' => ['id' => $peerId, 'name' => $peerName, 'type' => $peerType],
-                'count' => $raw['count'] ?? \count($messages),
-                'returned' => \count($rows),
-                'messages' => $rows,
-            ];
+            return $this->formatConversationPage($page, $newToken);
         });
+    }
+
+    private function buildMessageRows(array $raw, int $peerId): array
+    {
+        $messages = $raw['messages'] ?? [];
+        $users = [];
+        foreach ($raw['users'] ?? [] as $u) {
+            $users[$u['id']] = $u;
+        }
+        $chats = [];
+        foreach ($raw['chats'] ?? [] as $c) {
+            $chats[$c['id']] = $c;
+        }
+
+        $rows = [];
+        foreach ($messages as $m) {
+            $fromId = $m['from_id'] ?? $peerId;
+            if (!\is_int($fromId)) {
+                $fromId = $peerId;
+            }
+            [$ftype, $fname] = $this->resolvePeerInfo((int) $fromId, $users, $chats);
+
+            $text = '';
+            $mediaType = 'text';
+            if (isset($m['message']) && \is_string($m['message']) && $m['message'] !== '') {
+                $text = $m['message'];
+            } elseif (isset($m['media'])) {
+                $mediaType = 'media:' . ($m['media']['_'] ?? 'unknown');
+                $text = $m['message'] ?? '';
+            } elseif (isset($m['action'])) {
+                $mediaType = 'action:' . ($m['action']['_'] ?? 'unknown');
+            }
+
+            $rows[] = [
+                'id' => $m['id'],
+                'date' => $m['date'] ?? 0,
+                'out' => (bool) ($m['out'] ?? false),
+                'from' => ['id' => $fromId, 'name' => $fname, 'type' => $ftype],
+                'media_type' => $mediaType,
+                'text' => $text,
+                'edited' => isset($m['edit_date']),
+                'reply_to' => ($m['reply_to']['reply_to_msg_id'] ?? null),
+            ];
+        }
+
+        return $rows;
+    }
+
+    private function formatConversationPage(array $page, string $token): array
+    {
+        $meta = $page['meta'] ?? [];
+        $peerInfo = $meta['peer_info'] ?? ['id' => null, 'name' => null, 'type' => null];
+        $storeDone = $page['done'];
+        $canExtend = ($meta['oldest_id'] ?? 0) > 0;
+
+        return [
+            'peer' => $peerInfo,
+            'count' => $meta['true_count'] ?? $page['total'],
+            'loaded' => $page['total'],
+            'returned' => $page['returned'],
+            'messages' => $page['items'],
+            'sort_token' => $token,
+            'page_done' => $storeDone && !$canExtend,
+        ];
+    }
+
+    private function minMessageId(array $rows, int $fallback): int
+    {
+        $min = null;
+        foreach ($rows as $r) {
+            $id = $r['id'] ?? null;
+            if ($id === null) {
+                continue;
+            }
+            if ($min === null || $id < $min) {
+                $min = (int) $id;
+            }
+        }
+
+        return $min ?? $fallback;
     }
 
     private function resolvePeerId($peer, array $users, array $chats): ?int
