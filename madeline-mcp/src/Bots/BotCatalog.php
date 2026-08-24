@@ -18,7 +18,7 @@ final class BotCatalog
 
     public function has(string $tool): bool
     {
-        return \in_array($tool, ['bots.list', 'bot.scan', 'bot.invoke'], true);
+        return \in_array($tool, ['bots.list', 'bot.scan', 'bot.invoke', 'bot.read'], true);
     }
 
     /** @return list<array<string,mixed>> */
@@ -50,6 +50,14 @@ final class BotCatalog
                     'session_name' => ['type' => 'string'],
                 ]],
             ],
+            [
+                'name' => 'bot.read',
+                'description' => 'Fresh transcript tail + current inline buttons for a bot peer (observe without acting). Use before multi-step flows to see the wizard state.',
+                'inputSchema' => ['type' => 'object', 'required' => ['peer'], 'properties' => [
+                    'peer' => ['type' => 'string', 'description' => 'Bot username (@x) or id.'],
+                    'session_name' => ['type' => 'string'],
+                ]],
+            ],
         ];
     }
 
@@ -60,6 +68,7 @@ final class BotCatalog
                 'bots.list' => $this->listBots($client),
                 'bot.scan' => $this->scan($args, $client),
                 'bot.invoke' => $this->invoke($args, $client),
+                'bot.read' => $this->read($args, $client),
                 default => ['_error' => true, 'message' => "Unknown bots tool: $tool"],
             };
         } catch (Throwable $e) {
@@ -212,6 +221,76 @@ final class BotCatalog
             }
         }
         return $p;
+    }
+
+    /**
+     * Observe-without-act: fresh transcript tail (both directions) plus the
+     * current inline button map. Refreshes cached map buttons so subsequent
+     * bot.invoke callback presses address live data.
+     */
+    private function read(array $args, ApiClient $client): array
+    {
+        $peer = (string) ($args['peer'] ?? '');
+        if ($peer === '') {
+            return ['_error' => true, 'message' => 'peer required'];
+        }
+        $session = $this->sessionOf($args, $client);
+        $key = $this->botKey($client, $session, $peer);
+        $file = $this->cacheFile($session, $key);
+
+        $username = '';
+        $title = $peer;
+        try {
+            $info = (array) $client->api($session)->getInfo($peer);
+            $u = (array) ((array) ($info['User'] ?? $info['Chat'] ?? []));
+            $username = (string) ($u['username'] ?? '');
+            $title = (string) ($u['title'] ?? ($u['first_name'] ?? $peer));
+        } catch (Throwable) {
+        }
+        try {
+            $h = (array) $client->api($session)->messages->getHistory(peer: $peer, limit: 10, offset_id: 0);
+        } catch (Throwable $e) {
+            return ['_error' => true, 'message' => 'getHistory failed: ' . $e->getMessage()];
+        }
+
+        $msgs = (array) ($h['messages'] ?? []);
+        $outMsgs = [];
+        $allBtns = [];
+        foreach ($msgs as $m) {
+            if (!\is_array($m)) {
+                continue;
+            }
+            $btns = BotScanner::buttonsOfMessage($m);
+            foreach ($btns as $t => $meta) {
+                $allBtns[$t] = $meta;
+            }
+            $outMsgs[] = [
+                'id' => (int) ($m['id'] ?? 0),
+                'out' => (bool) ($m['out'] ?? false),
+                'text' => (string) ($m['message'] ?? ''),
+                'inline_buttons' => $btns,
+            ];
+        }
+
+        // Merge fresh buttons into the cached map (keeps commands etc.).
+        // NOTE: MP error handler throws on warnings -> guard fs ops.
+        $map = $this->readJson($file) ?? [];
+        foreach ($allBtns as $t => $meta) {
+            $map['inline_buttons'][$t] = $meta;
+        }
+        if (!\is_dir(\dirname($file))) {
+            \mkdir(\dirname($file), 0755, true);
+        }
+        \file_put_contents($file, \json_encode($map, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+
+        return [
+            'peer' => $username !== '' ? '@' . $username : $peer,
+            'title' => $title,
+            'username' => $username,
+            'messages' => $outMsgs,
+            'inline_buttons' => $allBtns ?: new \stdClass(),
+            'scanned_at' => \time(),
+        ];
     }
 
     private function readJson(string $file): ?array

@@ -75,4 +75,46 @@ final class SanitizerTest extends TestCase
             'title' => 'Telegram News', 'username' => 'telegram', 'verified' => true,
         ], $r);
     }
+
+    public function testInvokeProjectionTruncatesEvents(): void
+    {
+        $in = [
+            'action' => '/menu', 'kind' => 'command', 'sent' => true,
+            'response' => str_repeat('x', 5000),
+            'events' => [
+                ['id' => 1, 'type' => 'new', 'text' => str_repeat('y', 900), 'buttons' => ['A' => []]],
+                ['id' => 1, 'type' => 'edit', 'text' => 'v2', 'buttons' => []],
+            ],
+            'buttons' => ['A' => ['type' => 'callback', 'data' => 'SECRET']],
+            'reply_msg_id' => 1, 'callback_answer' => null,
+        ];
+        $d = ResponseSanitizer::project('bot.invoke', $in);
+        $this->assertLessThanOrEqual(1600, mb_strlen((string) $d['response']));
+        $this->assertSame('edit', $d['events'][1]['type']);
+        $this->assertLessThanOrEqual(300, mb_strlen((string) $d['events'][0]['text']));
+        $this->assertSame(1, $d['events'][0]['n_buttons']);
+        $this->assertArrayNotHasKey('data', $d['buttons'][0] ?? []); // payloads stay server-side
+    }
+
+    public function testReadProjectionStripsDataKeepsShape(): void
+    {
+        $in = [
+            'peer' => '@bf',
+            'messages' => [['id' => 5, 'out' => false, 'text' => str_repeat('z', 900), 'inline_buttons' => ['Go' => []]]],
+            'inline_buttons' => ['Go' => ['type' => 'callback', 'data' => 'SECRET', 'msg_id' => 5]],
+        ];
+        $d = ResponseSanitizer::project('bot.read', $in);
+        $this->assertLessThanOrEqual(301, mb_strlen((string) $d['messages'][0]['text']));
+        $this->assertSame(1, $d['messages'][0]['n_buttons']);
+        // inline_buttons becomes a list of {text,type,msg_id[,url]} — data stripped.
+        $go = null;
+        foreach ((array) ($d['inline_buttons'] ?? []) as $b) {
+            if (($b['text'] ?? '') === 'Go') {
+                $go = $b;
+            }
+        }
+        $this->assertNotNull($go);
+        $this->assertArrayNotHasKey('data', $go); // payloads stay server-side
+        $this->assertSame('callback', $go['type']);
+    }
 }

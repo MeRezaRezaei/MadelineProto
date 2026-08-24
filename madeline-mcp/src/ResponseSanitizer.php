@@ -46,6 +46,40 @@ final class ResponseSanitizer
                 );
                 \uasort($buttons, fn ($a, $b) => strcmp((string) $a['text'], (string) $b['text']));
                 $result['buttons'] = \array_values($buttons);
+                // Event diff: compact per-event summaries.
+                $result['response'] = \mb_substr((string) ($result['response'] ?? ''), 0, 1500);
+                $events = [];
+                foreach ((array) ($result['events'] ?? []) as $e) {
+                    $events[] = [
+                        'id' => (int) ($e['id'] ?? 0),
+                        'type' => (string) ($e['type'] ?? ''),
+                        'text' => \mb_substr((string) ($e['text'] ?? ''), 0, 300),
+                        'n_buttons' => \is_array($e['buttons'] ?? null) ? \count($e['buttons']) : 0,
+                    ];
+                }
+                $result['events'] = $events;
+                return $result;
+
+            case 'bot.read':
+                $msgs = [];
+                foreach ((array) ($result['messages'] ?? []) as $m) {
+                    $msgs[] = [
+                        'id' => (int) ($m['id'] ?? 0),
+                        'out' => (bool) ($m['out'] ?? false),
+                        'text' => \mb_substr((string) ($m['text'] ?? ''), 0, 300),
+                        'n_buttons' => \is_array($m['inline_buttons'] ?? null) ? \count($m['inline_buttons']) : 0,
+                    ];
+                }
+                $result['messages'] = $msgs;
+                $btns = [];
+                foreach ((array) ($result['inline_buttons'] ?? []) as $text => $meta) {
+                    $entry = ['text' => (string) $text, 'type' => (string) ($meta['type'] ?? 'callback'), 'msg_id' => (int) ($meta['msg_id'] ?? 0)];
+                    if (($meta['type'] ?? '') === 'url') {
+                        $entry['url'] = (string) ($meta['url'] ?? '');
+                    }
+                    $btns[] = $entry;
+                }
+                $result['inline_buttons'] = \array_values($btns); // data stays server-side
                 return $result;
 
             case 'resolve_peer':

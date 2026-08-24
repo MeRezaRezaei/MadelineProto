@@ -281,6 +281,32 @@ final class ToolCatalog
                 ]),
             ],
             [
+                'name' => 'list_folders',
+                'description' => 'List Telegram chat folders (filters / chatlists) with id, title, kind, and peer counts.',
+                'inputSchema' => self::objectSchema(['session_name' => self::sessionParam()]),
+            ],
+            [
+                'name' => 'list_conversations',
+                'description' => 'List conversations resolved to names with last-message preview and last-activity, sorted most-recent first. scope: "personal" (private 1-on-1 human chats), "all", or a numeric folder id.',
+                'inputSchema' => self::objectSchema([
+                    'session_name' => self::sessionParam(),
+                    'scope' => self::str('"personal", "all", or a numeric folder id.'),
+                    'limit' => self::int('Max rows (default 20, max 50).'),
+                    'offset' => self::int('Rows to skip (default 0).'),
+                    'include_bots' => self::bool('Include bot chats (default false).'),
+                ]),
+            ],
+            [
+                'name' => 'get_conversation',
+                'description' => 'Read a conversation (peer id, username, or @username) as a clean, projected message list: id, date, sender, text/media, edited, reply. Avoids raw-TL noise and truncation.',
+                'inputSchema' => self::objectSchema([
+                    'session_name' => self::sessionParam(),
+                    'peer' => self::str('Peer id, username, or @username.'),
+                    'limit' => self::int('Max messages (default 20, max 100).'),
+                    'offset_id' => self::int('Fetch messages older than this id (default 0 = most recent).'),
+                ]),
+            ],
+            [
                 'name' => 'call_method',
                 'description' => 'Call ANY Telegram method by dotted name. Use list_methods to discover names and params.',
                 'inputSchema' => self::objectSchema([
@@ -340,6 +366,9 @@ final class ToolCatalog
             'resolve_peer' => $this->resolvePeer($args),
             'search_messages' => $this->searchMessages($args),
             'get_full_chat_info' => $this->getFullChatInfo($args),
+            'list_folders' => $this->listFolders($args),
+            'list_conversations' => $this->listConversations($args),
+            'get_conversation' => $this->getConversation($args),
             'list_methods' => $this->listMethods($args),
             'call_method' => $this->callRaw($args),
             default => ['_error' => true, 'message' => "Unknown tool: $name"],
@@ -583,6 +612,290 @@ final class ToolCatalog
         }
         $callArgs = $args['args'] ?? [];
         return $this->twrap(fn () => $this->client->call($method, \is_array($callArgs) ? $callArgs : [], $args['session_name'] ?? null));
+    }
+
+    /**
+     * List Telegram chat folders (dialog filters / chatlists).
+     */
+    private function listFolders(array $args): array
+    {
+        return $this->twrap(function () use ($args) {
+            $res = $this->client->call('messages.getDialogFilters', [], $args['session_name'] ?? null);
+            $filters = $res['filters'] ?? [];
+            $out = [];
+            foreach ($filters as $f) {
+                if (!isset($f['_']) || $f['_'] === 'dialogFilterDefault') {
+                    continue;
+                }
+                $title = $f['title']['text'] ?? ($f['title'] ?? '');
+                $kind = ($f['_'] === 'dialogFilterChatlist') ? 'chatlist' : 'filter';
+                $out[] = [
+                    'id' => $f['id'],
+                    'title' => \is_array($title) ? ($title['text'] ?? '') : $title,
+                    'emoticon' => $f['emoticon'] ?? '',
+                    'kind' => $kind,
+                    'pinned_count' => \count($f['pinned_peers'] ?? []),
+                    'include_count' => \count($f['include_peers'] ?? []),
+                ];
+            }
+            return ['folders' => $out];
+        });
+    }
+
+    /**
+     * List conversations resolved to names, with last-message preview and
+     * last-activity, sorted most-recent first. Server-side projection keeps the
+     * payload small so it is never truncated downstream.
+     */
+    private function listConversations(array $args): array
+    {
+        return $this->twrap(function () use ($args) {
+            $session = $args['session_name'] ?? null;
+            $scope = $args['scope'] ?? 'personal';
+            $limit = min((int) ($args['limit'] ?? 20), 50);
+            $offset = max((int) ($args['offset'] ?? 0), 0);
+            $includeBots = (bool) ($args['include_bots'] ?? false);
+
+            $api = $this->api($session);
+            $raw = $api->messages->getDialogs([
+                'limit' => 200,
+                'offset_date' => 0,
+                'offset_id' => 0,
+                'offset_peer' => ['_' => 'inputPeerEmpty'],
+            ]);
+
+            $dialogs = $raw['dialogs'] ?? [];
+            $messages = [];
+            foreach ($raw['messages'] ?? [] as $m) {
+                $messages[$m['id']] = $m;
+            }
+            $users = [];
+            foreach ($raw['users'] ?? [] as $u) {
+                $users[$u['id']] = $u;
+            }
+            $chats = [];
+            foreach ($raw['chats'] ?? [] as $c) {
+                $chats[$c['id']] = $c;
+            }
+
+            $allowed = null;
+            if (is_numeric($scope)) {
+                $allowed = $this->folderPeerSet((int) $scope, $session);
+            }
+
+            $rows = [];
+            foreach ($dialogs as $d) {
+                $pid = $pid = $d['peer'] ?? null;
+                if (!\is_int($pid)) {
+                    continue;
+                }
+                [$type, $name, $username] = $this->resolvePeerInfo($pid, $users, $chats);
+                if ($type === null) {
+                    continue;
+                }
+                if ($type === 'bot' && !$includeBots) {
+                    continue;
+                }
+                if (\is_numeric($scope)) {
+                    if ($allowed !== null && !isset($allowed[$pid])) {
+                        continue;
+                    }
+                } elseif ($scope === 'personal') {
+                    if ($type !== 'user') {
+                        continue;
+                    }
+                }
+
+                $msg = $messages[$d['top_message']] ?? null;
+                $date = $msg['date'] ?? 0;
+                $preview = '';
+                if ($msg) {
+                    if (isset($msg['message']) && \is_string($msg['message'])) {
+                        $preview = \mb_substr($msg['message'], 0, 80);
+                    } elseif (isset($msg['action'])) {
+                        $preview = '[' . ($msg['action']['_'] ?? 'action') . ']';
+                    }
+                }
+                $rows[] = [
+                    'id' => $pid,
+                    'name' => $name,
+                    'username' => $username,
+                    'type' => $type,
+                    'preview' => $preview,
+                    'last_activity' => $date,
+                    'unread' => $d['unread_count'] ?? 0,
+                    'pinned' => (bool) ($d['pinned'] ?? false),
+                ];
+            }
+
+            \usort($rows, fn ($a, $b) => $b['last_activity'] <=> $a['last_activity']);
+            $total = \count($rows);
+            $rows = \array_slice($rows, $offset, $limit);
+
+            return ['total' => $total, 'returned' => \count($rows), 'conversations' => $rows];
+        });
+    }
+
+    private function resolvePeerInfo(int $pid, array $users, array $chats): array
+    {
+        if ($pid > 0) {
+            $u = $users[$pid] ?? null;
+            if (!$u) {
+                return [null, null, null];
+            }
+            $name = \trim(($u['first_name'] ?? '') . ' ' . ($u['last_name'] ?? ''));
+            $name = $name ?: ($u['username'] ?? (string) $pid);
+
+            return [!empty($u['bot']) ? 'bot' : 'user', $name, $u['username'] ?? null];
+        }
+        if (\str_starts_with((string) $pid, '-100')) {
+            $c = $chats[\abs($pid)] ?? null;
+            if (!$c) {
+                return [null, null, null];
+            }
+
+            return ['channel', $c['title'] ?? (string) $pid, null];
+        }
+        $c = $chats[\abs($pid)] ?? null;
+        if (!$c) {
+            return [null, null, null];
+        }
+
+        return ['group', $c['title'] ?? (string) $pid, null];
+    }
+
+    private function folderPeerSet(int $folderId, ?string $session): ?array
+    {
+        $res = $this->client->call('messages.getDialogFilters', [], $session);
+        foreach ($res['filters'] ?? [] as $f) {
+            if (($f['id'] ?? null) != $folderId) {
+                continue;
+            }
+            $set = [];
+            foreach (\array_merge($f['pinned_peers'] ?? [], $f['include_peers'] ?? []) as $p) {
+                $id = $this->peerIdFromInput($p);
+                if ($id !== null) {
+                    $set[$id] = true;
+                }
+            }
+
+            return $set;
+        }
+
+        return [];
+    }
+
+    private function peerIdFromInput(array $p): ?int
+    {
+        switch ($p['_'] ?? '') {
+            case 'inputPeerUser':
+                return (int) ($p['user_id'] ?? null);
+            case 'inputPeerChat':
+                return -\abs((int) ($p['chat_id'] ?? 0));
+            case 'inputPeerChannel':
+                return -(1000000000000 + (int) ($p['channel_id'] ?? 0));
+            default:
+                return null;
+        }
+    }
+
+    /**
+     * Read a conversation as a clean, projected message list (server-side
+     * projection keeps the payload small so it is never truncated downstream).
+     */
+    private function getConversation(array $args): array
+    {
+        return $this->twrap(function () use ($args) {
+            $session = $args['session_name'] ?? null;
+            $peer = $args['peer'] ?? null;
+            if ($peer === null || $peer === '') {
+                throw new \Exception('peer is required');
+            }
+            $limit = min((int) ($args['limit'] ?? 20), 100);
+            $offsetId = (int) ($args['offset_id'] ?? 0);
+
+            $api = $this->api($session);
+            $raw = $api->messages->getHistory([
+                'peer' => $peer,
+                'limit' => $limit,
+                'offset_id' => $offsetId,
+                'offset_date' => 0,
+                'add_offset' => 0,
+                'max_id' => 0,
+                'min_id' => 0,
+            ]);
+
+            $messages = $raw['messages'] ?? [];
+            $users = [];
+            foreach ($raw['users'] ?? [] as $u) {
+                $users[$u['id']] = $u;
+            }
+            $chats = [];
+            foreach ($raw['chats'] ?? [] as $c) {
+                $chats[$c['id']] = $c;
+            }
+
+            $peerId = $this->resolvePeerId($peer, $users, $chats);
+            [$peerType, $peerName] = $this->resolvePeerInfo((int) $peerId, $users, $chats);
+
+            $rows = [];
+            foreach ($messages as $m) {
+                $fromId = $m['from_id'] ?? $peerId;
+                if (!\is_int($fromId)) {
+                    $fromId = $peerId;
+                }
+                [$ftype, $fname] = $this->resolvePeerInfo((int) $fromId, $users, $chats);
+
+                $text = '';
+                $mediaType = 'text';
+                if (isset($m['message']) && \is_string($m['message']) && $m['message'] !== '') {
+                    $text = $m['message'];
+                } elseif (isset($m['media'])) {
+                    $mediaType = 'media:' . ($m['media']['_'] ?? 'unknown');
+                    $text = $m['message'] ?? '';
+                } elseif (isset($m['action'])) {
+                    $mediaType = 'action:' . ($m['action']['_'] ?? 'unknown');
+                }
+
+                $rows[] = [
+                    'id' => $m['id'],
+                    'date' => $m['date'] ?? 0,
+                    'out' => (bool) ($m['out'] ?? false),
+                    'from' => ['id' => $fromId, 'name' => $fname, 'type' => $ftype],
+                    'media_type' => $mediaType,
+                    'text' => $text,
+                    'edited' => isset($m['edit_date']),
+                    'reply_to' => ($m['reply_to']['reply_to_msg_id'] ?? null),
+                ];
+            }
+
+            return [
+                'peer' => ['id' => $peerId, 'name' => $peerName, 'type' => $peerType],
+                'count' => $raw['count'] ?? \count($messages),
+                'returned' => \count($rows),
+                'messages' => $rows,
+            ];
+        });
+    }
+
+    private function resolvePeerId($peer, array $users, array $chats): ?int
+    {
+        if (\is_numeric($peer)) {
+            return (int) $peer;
+        }
+        $p = \ltrim((string) $peer, '@');
+        foreach ($users as $u) {
+            if (($u['username'] ?? null) === $p) {
+                return $u['id'];
+            }
+        }
+        foreach ($chats as $c) {
+            if (($c['username'] ?? null) === $p) {
+                return $c['id'];
+            }
+        }
+
+        return null;
     }
 
     /** Run a closure, normalizing thrown errors into a JSON-safe shape. */

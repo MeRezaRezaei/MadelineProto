@@ -73,6 +73,9 @@ final class AccountSessionTest extends TestCase
             'method' => 'contacts.getContacts',
             'args' => ['hash' => '0'],
         ]);
+        if (is_array($res) && ($res['code'] ?? 0) === 420) {
+            self::markTestSkipped('Live API FLOOD_WAIT ' . ($res['message'] ?? ''));
+        }
         self::assertArrayNotHasKey('_error', $res, 'call_method should not error: ' . \json_encode($res));
         self::assertArrayHasKey('contacts', $res);
     }
