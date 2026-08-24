@@ -171,14 +171,17 @@ final class ResponseSanitizer
             foreach ($result['users'] as $u) {
                 $out[] = \is_array($u) ? self::projectUser($u) : $u;
             }
-            $result['users'] = $out;
+            // Bound the reference table so participant-style calls
+            // (channels.getParticipants, messages.getDialogs) stay under the
+            // proxy cap even if clean() is not applied downstream.
+            $result['users'] = \array_slice($out, 0, self::MAX_LIST);
         }
         if (isset($result['chats']) && \is_array($result['chats'])) {
             $out = [];
             foreach ($result['chats'] as $c) {
                 $out[] = \is_array($c) ? self::projectChat($c) : $c;
             }
-            $result['chats'] = $out;
+            $result['chats'] = \array_slice($out, 0, self::MAX_LIST);
         }
 
         // Names are embedded in the projected messages/dialogs, but the
