@@ -85,6 +85,20 @@ class RelationalStore
         return isset($rows[0]) ? $rows[0] : null;
     }
 
+    public function deleteAccount(int $id): void
+    {
+        $this->driver->exec('DELETE FROM account_entities WHERE account_id = ?', [$id]);
+        $this->driver->exec('DELETE FROM accounts WHERE id = ?', [$id]);
+    }
+
+    /**
+     * Remove every entity link for a given account.
+     */
+    public function deleteAccountEntities(int $accountId): void
+    {
+        $this->driver->exec('DELETE FROM account_entities WHERE account_id = ?', [$accountId]);
+    }
+
     public function listAccounts(): array
     {
         return $this->driver->query('SELECT * FROM accounts ORDER BY id');
