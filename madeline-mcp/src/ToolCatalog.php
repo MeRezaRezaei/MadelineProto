@@ -825,6 +825,7 @@ final class ToolCatalog
                 $filterLabel = $meta['filter'] ?? $filterLabel;
                 $sort = $meta['sort'] ?? $sort;
                 $includeMedia = (bool) ($meta['include_media'] ?? $includeMedia);
+                $includeBots = (bool) ($meta['include_bots'] ?? $includeBots);
 
                 return $this->conversationsEnvelope($filterLabel, $sort, $includeMedia, $includeBots, $page, $token);
             }
@@ -913,6 +914,7 @@ final class ToolCatalog
                 'filter' => $filterLabel,
                 'sort' => $sort,
                 'include_media' => $includeMedia,
+                'include_bots' => $includeBots,
                 'session' => $session,
             ]);
             $page = SnapshotStore::take($newToken, $limit);
@@ -956,7 +958,7 @@ final class ToolCatalog
             $type = (string) ($msg['media']['_'] ?? 'unknown');
             $ref = '#' . (int) ($msg['id'] ?? $pid);
 
-            return $includeMedia ? "media:{$type}:{$ref}" : "media:{$type}";
+            return $includeMedia ? "media:#{$ref}" : "media:{$type}";
         }
 
         return '';
@@ -1014,14 +1016,14 @@ final class ToolCatalog
                 return [null, null, null];
             }
 
-            return ['channel', $c['title'] ?? (string) $pid, null];
+            return ['channel', $c['title'] ?? (string) $pid, $c['username'] ?? null];
         }
         $c = $chats[\abs($pid)] ?? null;
         if (!$c) {
             return [null, null, null];
         }
 
-        return ['group', $c['title'] ?? (string) $pid, null];
+        return ['group', $c['title'] ?? (string) $pid, $c['username'] ?? null];
     }
 
     private function folderPeerSet(int $folderId, ?string $session): ?array
