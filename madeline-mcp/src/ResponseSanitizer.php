@@ -119,6 +119,31 @@ final class ResponseSanitizer
     }
 
     /**
+     * Reshape a curated listing result into the AI-facing SIMPLE STRUCTURE:
+     * a top "about" section (what was asked: filter/sort/counts) and a "rows"
+     * array where every record follows the same fixed field order.
+     */
+    public static function toSimple(string $tool, mixed $result): mixed
+    {
+        if (!\is_array($result) || isset($result['_error'])) {
+            return $result;
+        }
+        switch ($tool) {
+            case 'list_conversations':
+                $rows = $result['conversations'] ?? [];
+                $about = $result;
+                unset($about['conversations']);
+                return ['about' => $about, 'rows' => \array_values($rows)];
+            case 'get_conversation':
+                $rows = $result['messages'] ?? [];
+                $about = $result;
+                unset($about['messages']);
+                return ['about' => $about, 'rows' => \array_values($rows)];
+        }
+        return $result;
+    }
+
+    /**
      * Generic projection for the heavy TL container shapes (messages, dialogs,
      * users, chats). Reused for every raw call_method result so the AI gets the
      * same clean shape whether it calls get_conversation or messages.getHistory.

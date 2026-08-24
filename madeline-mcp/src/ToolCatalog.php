@@ -323,12 +323,14 @@ final class ToolCatalog
             ],
             [
                 'name' => 'list_conversations',
-                'description' => 'List conversations resolved to names with last-message preview and last-activity, sorted most-recent first. Each call returns a frozen-in-time sort_token: pass it back to get the NEXT slice of the SAME order (Telegram reshuffles positions constantly, so never re-list to paginate). Omit sort_token for a fresh current-moment sort. scope: "personal" (private 1-on-1 human chats), "all", or a numeric folder id. [Compatible] Telegram IDs (user id, chat id, message id) are GLOBALLY STATIC and unique across all accounts — rely on them as stable references. The sort_token is a short-lived server cache (expires after a few minutes); if it reports expiry, call without sort_token for a fresh current-moment snapshot.',
+                'description' => 'List conversations as a simple, AI-friendly structure: an "about" section (filter, sort, counts) plus rows in a fixed field order — Username, Id, Last seen, Last message, Last message was me (1/0). scope filters by "all" (default), "personal", or a numeric folder id; sort by "telegram_default" (Telegram native), "last_message", or "last_seen". Pass sort_token back to paginate the SAME stable order; omit it for a fresh current-moment snapshot. Telegram IDs are GLOBALLY STATIC — safe to rely on.',
                 'inputSchema' => self::objectSchema([
                     'session_name' => self::sessionParam(),
-                    'scope' => self::str('"personal", "all", or a numeric folder id.'),
+                    'scope' => self::str('Filter: "all" (default, every chat), "personal" (private 1-on-1), or a numeric folder id (e.g. 2).'),
+                    'sort' => self::str('Order: "telegram_default" (Telegram native order, default), "last_message" (most recent activity), "last_seen" (peer last-seen, newest first).'),
                     'limit' => self::int('Max rows (default 20, max 50).'),
                     'include_bots' => self::bool('Include bot chats (default false).'),
+                    'include_media' => self::bool('When the last message is media, include a media:#id reference the AI can pass to download_media. Default false (media shown as a placeholder).'),
                     'sort_token' => self::str('Frozen-sort token from a previous call; returns the next slice of the same order. Omit for a fresh sort.'),
                 ]),
             ],
@@ -800,24 +802,28 @@ final class ToolCatalog
     {
         return $this->twrap(function () use ($args) {
             $session = $args['session_name'] ?? null;
-            $scope = $args['scope'] ?? 'personal';
+            $scope = $args['scope'] ?? 'all';
             $limit = min((int) ($args['limit'] ?? 20), 50);
             $includeBots = (bool) ($args['include_bots'] ?? false);
+            $includeMedia = (bool) ($args['include_media'] ?? false);
+            $sort = $args['sort'] ?? 'telegram_default';
             $token = $args['sort_token'] ?? null;
+
+            $filterLabel = is_numeric($scope)
+                ? 'folder:' . $scope
+                : ($scope === 'personal' ? 'personal' : 'all');
 
             if (\is_string($token)) {
                 if (!SnapshotStore::exists($token)) {
                     return ['_error' => true, 'message' => 'sort_token expired or unknown; call without sort_token for a fresh (current-moment) sort.'];
                 }
                 $page = SnapshotStore::take($token, $limit);
+                $meta = $page['meta'] ?? [];
+                $filterLabel = $meta['filter'] ?? $filterLabel;
+                $sort = $meta['sort'] ?? $sort;
+                $includeMedia = (bool) ($meta['include_media'] ?? $includeMedia);
 
-                return [
-                    'total' => $page['total'],
-                    'returned' => $page['returned'],
-                    'conversations' => $page['items'],
-                    'sort_token' => $token,
-                    'page_done' => $page['done'],
-                ];
+                return $this->conversationsEnvelope($filterLabel, $sort, $includeMedia, $includeBots, $page, $token);
             }
 
             $api = $this->api($session);
@@ -848,11 +854,14 @@ final class ToolCatalog
             }
 
             $rows = [];
+            $lastActivity = [];
+            $seenEpoch = [];
             foreach ($dialogs as $d) {
                 $pid = $d['peer'] ?? null;
                 if (!\is_int($pid)) {
                     continue;
                 }
+
                 [$type, $name, $username] = $this->resolvePeerInfo($pid, $users, $chats);
                 if ($type === null) {
                     continue;
@@ -872,40 +881,118 @@ final class ToolCatalog
 
                 $msg = $messages[$d['top_message']] ?? null;
                 $date = $msg['date'] ?? 0;
-                $preview = '';
-                if ($msg) {
-                    if (isset($msg['message']) && \is_string($msg['message'])) {
-                        $preview = \mb_substr($msg['message'], 0, 80);
-                    } elseif (isset($msg['action'])) {
-                        $preview = '[' . ($msg['action']['_'] ?? 'action') . ']';
-                    }
-                }
+                $lastMessage = $this->conversationPreview($msg, $includeMedia, $pid);
+                $lastWasMe = ($msg && !empty($msg['out'])) ? 1 : 0;
+                $status = ($type === 'user') ? ($users[$pid]['status'] ?? null) : null;
+                $lastSeen = $this->lastSeenText($status);
+                $seenEpoch[$pid] = $this->lastSeenEpoch($status);
+
+                $display = $username !== null ? '@' . $username : $name;
                 $rows[] = [
+                    'username' => $display,
                     'id' => $pid,
-                    'name' => $name,
-                    'username' => $username,
-                    'type' => $type,
-                    'preview' => $preview,
-                    'last_activity' => $date,
-                    'unread' => $d['unread_count'] ?? 0,
-                    'pinned' => (bool) ($d['pinned'] ?? false),
+                    'last_seen' => $lastSeen,
+                    'last_message' => $lastMessage,
+                    'last_message_was_me' => $lastWasMe,
                 ];
+                $lastActivity[$pid] = $date;
             }
 
-            \usort($rows, fn ($a, $b) => $b['last_activity'] <=> $a['last_activity']);
-            $newToken = SnapshotStore::create($rows, ['scope' => $scope, 'session' => $session]);
+            if ($sort === 'last_message') {
+                \usort($rows, fn ($a, $b) => ($lastActivity[$b['id']] ?? 0) <=> ($lastActivity[$a['id']] ?? 0));
+            } elseif ($sort === 'last_seen') {
+                \usort($rows, fn ($a, $b) => ($seenEpoch[$b['id']] ?? 0) <=> ($seenEpoch[$a['id']] ?? 0));
+            }
+            // 'telegram_default' => keep the order MadelineProto returned natively.
+
+            $newToken = SnapshotStore::create($rows, [
+                'scope' => $scope,
+                'filter' => $filterLabel,
+                'sort' => $sort,
+                'include_media' => $includeMedia,
+                'session' => $session,
+            ]);
             $page = SnapshotStore::take($newToken, $limit);
 
-            return [
-                'total' => $page['total'],
-                'returned' => $page['returned'],
-                'conversations' => $page['items'],
-                'sort_token' => $newToken,
-                'page_done' => $page['done'],
-            ];
+            return $this->conversationsEnvelope($filterLabel, $sort, $includeMedia, $includeBots, $page, $newToken);
         });
     }
 
+    private function conversationsEnvelope(string $filter, string $sort, bool $includeMedia, bool $includeBots, array $page, string $token): array
+    {
+        return [
+            'filter' => $filter,
+            'sort' => $sort,
+            'media' => $includeMedia ? 'included' : 'placeholder',
+            'include_bots' => $includeBots,
+            'total' => $page['total'],
+            'returned' => $page['returned'],
+            'page_done' => $page['done'],
+            'sort_token' => $token,
+            'conversations' => $page['items'],
+        ];
+    }
+
+    /**
+     * One-line last-message preview. Media is a placeholder by default; when
+     * include_media is set the placeholder carries a message reference (#id)
+     * the AI can later hand to download_media to fetch the actual file.
+     */
+    private function conversationPreview(?array $msg, bool $includeMedia, int $pid): string
+    {
+        if ($msg === null) {
+            return '';
+        }
+        if (isset($msg['message']) && \is_string($msg['message']) && $msg['message'] !== '') {
+            return \mb_substr($msg['message'], 0, 200);
+        }
+        if (isset($msg['action'])) {
+            return '[' . (string) ($msg['action']['_'] ?? 'action') . ']';
+        }
+        if (isset($msg['media'])) {
+            $type = (string) ($msg['media']['_'] ?? 'unknown');
+            $ref = '#' . (int) ($msg['id'] ?? $pid);
+
+            return $includeMedia ? "media:{$type}:{$ref}" : "media:{$type}";
+        }
+
+        return '';
+    }
+
+    private function lastSeenText(?array $status): string
+    {
+        if ($status === null) {
+            return '—';
+        }
+
+        return match ($status['_'] ?? '') {
+            'userStatusOnline' => 'online',
+            'userStatusOffline' => isset($status['was_online'])
+                ? \date('Y-m-d H:i', (int) $status['was_online'])
+                : 'offline',
+            'userStatusRecently' => 'recently',
+            'userStatusLastWeek' => 'last week',
+            'userStatusLastMonth' => 'last month',
+            default => '—',
+        };
+    }
+
+    private function lastSeenEpoch(?array $status): int
+    {
+        $now = \time();
+        if ($status === null) {
+            return 0;
+        }
+
+        return match ($status['_'] ?? '') {
+            'userStatusOnline' => $now,
+            'userStatusOffline' => (int) ($status['was_online'] ?? 0),
+            'userStatusRecently' => $now - 3600,
+            'userStatusLastWeek' => $now - 604800,
+            'userStatusLastMonth' => $now - 2592000,
+            default => 0,
+        };
+    }
     private function resolvePeerInfo(int $pid, array $users, array $chats): array
     {
         if ($pid > 0) {

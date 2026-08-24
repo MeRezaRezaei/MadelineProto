@@ -137,8 +137,12 @@ final class McpServer
 
         // AI-facing shaping unless explicitly disabled.
         if (\getenv('MADELINE_MCP_RAW') !== '1') {
-            $result = ResponseSanitizer::project($name, $result);
-            $result = ResponseSanitizer::clean($result);
+            if ($name === 'list_conversations' || $name === 'get_conversation') {
+                $result = ResponseSanitizer::toSimple($name, $result);
+            } else {
+                $result = ResponseSanitizer::project($name, $result);
+                $result = ResponseSanitizer::clean($result);
+            }
         }
 
         // Proactive quota injection: budget state rides along with every
