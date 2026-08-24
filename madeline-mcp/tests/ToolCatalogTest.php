@@ -98,4 +98,17 @@ final class ToolCatalogTest extends TestCase
         self::assertContains('set_tool_mode', $names);
         self::assertNotContains('list_conversations', $names, 'compatible tools hidden in advanced mode');
     }
+
+    public function testProfileAndMediaAreCompatibleTools(): void
+    {
+        $all = \array_column($this->catalog()->all('all'), 'name');
+        self::assertContains('get_profile', $all);
+        self::assertContains('get_media', $all);
+
+        $compatible = \array_column($this->catalog()->all(), 'name');
+        self::assertContains('get_profile', $compatible, 'get_profile must be Compatible-tier');
+        self::assertContains('get_media', $compatible, 'get_media must be Compatible-tier');
+        self::assertNotContains('get_profile', \array_column($this->catalog()->all('advanced'), 'name'), 'hidden in advanced mode');
+        self::assertNotContains('get_media', \array_column($this->catalog()->all('advanced'), 'name'), 'hidden in advanced mode');
+    }
 }

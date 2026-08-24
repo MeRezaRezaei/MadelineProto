@@ -16,6 +16,7 @@ use MadelineMcp\Limits\UsageTracker;
 use MadelineMcp\Bots\BotCatalog;
 use Throwable;
 use MadelineMcp\SnapshotStore;
+use MadelineMcp\ResponseSanitizer;
 
 /**
  * Builds and dispatches MCP tools.
@@ -342,6 +343,23 @@ final class ToolCatalog
                 ]),
             ],
             [
+                'name' => 'get_profile',
+                'description' => '[Compatible] Get a user or bot profile (bio, username, photo, bot/online info) resolved from a peer (id, username, @username, or phone). Compacted and bounded; use Advanced call_method for the raw full_user object. Telegram user IDs are GLOBALLY STATIC across all accounts — safe to rely on.',
+                'inputSchema' => self::objectSchema([
+                    'session_name' => self::sessionParam(),
+                    'peer' => self::str('User/bot peer: id, username, @username, or phone.'),
+                ], ['peer']),
+            ],
+            [
+                'name' => 'get_media',
+                'description' => '[Compatible] Return the MEDIA METADATA of a message (type, mime, size, dimensions) without downloading it — so the AI can see what a message carries without huge file payloads. Use download_media to save the file to disk. Pass peer + message_id.',
+                'inputSchema' => self::objectSchema([
+                    'session_name' => self::sessionParam(),
+                    'peer' => self::str('Chat peer: id, username, or @username.'),
+                    'message_id' => self::int('The ID of the message whose media to inspect.'),
+                ], ['peer', 'message_id']),
+            ],
+            [
                 'name' => 'call_method',
                 'description' => '[ADVANCED] Call ANY Telegram method by dotted name and receive the COMPLETE raw object Telegram returns (every field). Use list_methods to discover names/params. Only use when the Compatible tools do not expose what you need.',
                 'inputSchema' => self::objectSchema([
@@ -362,6 +380,7 @@ final class ToolCatalog
             'send_message', 'send_media', 'download_media', 'delete_messages',
             'read_history', 'resolve_peer', 'search_messages', 'get_full_chat_info',
             'list_folders', 'list_conversations', 'get_conversation',
+            'get_profile', 'get_media',
         ];
 
         $tagged = array_map(function (array $t) use ($curatedNames, $advancedNames): array {
@@ -444,6 +463,8 @@ final class ToolCatalog
             'list_folders' => $this->listFolders($args),
             'list_conversations' => $this->listConversations($args),
             'get_conversation' => $this->getConversation($args),
+            'get_profile' => $this->getProfile($args),
+            'get_media' => $this->getMedia($args),
             'list_methods' => $this->listMethods($args),
             'call_method' => $this->callRaw($args),
             default => ['_error' => true, 'message' => "Unknown tool: $name"],
@@ -631,6 +652,57 @@ final class ToolCatalog
     private function getFullChatInfo(array $args): mixed
     {
         return $this->twrap(fn () => $this->api($args['session_name'] ?? null)->getPwrChat($args['peer']));
+    }
+
+    /**
+     * Compatible profile lookup for a person (user/bot). Returns the compacted
+     * full_user profile; the AI can drop to Advanced call_method(users.getFullUser)
+     * for the raw object.
+     */
+    private function getProfile(array $args): mixed
+    {
+        return $this->twrap(function () use ($args) {
+            $api = $this->api($args['session_name'] ?? null);
+            $info = $api->getInfo($args['peer']);
+            $id = $info['id']
+                ?? ($info['User']['id'] ?? null)
+                ?? ($info['Chat']['id'] ?? null);
+            if ($id === null) {
+                return ['_error' => true, 'message' => 'cannot resolve peer to an id'];
+            }
+            $full = $this->client->call('users.getFullUser', ['id' => $id], $args['session_name'] ?? null);
+
+            return ResponseSanitizer::clean($full);
+        });
+    }
+
+    /**
+     * Compatible media inspection: returns the message's media metadata (type,
+     * mime, size, dimensions) WITHOUT downloading, so the AI sees what a message
+     * carries without a multi-MB payload. Blobs are replaced by size markers.
+     */
+    private function getMedia(array $args): mixed
+    {
+        return $this->twrap(function () use ($args) {
+            $api = $this->api($args['session_name'] ?? null);
+            $parsedPeer = $api->getInfo($args['peer']);
+            $res = ($parsedPeer['type'] === 'channel' || $parsedPeer['type'] === 'supergroup')
+                ? $api->channels->getMessages(['channel' => $args['peer'], 'id' => [$args['message_id']]])
+                : $api->messages->getMessages(['id' => [$args['message_id']]]);
+            $msg = $res['messages'][0] ?? null;
+            if (!$msg || (isset($msg['_']) && $msg['_'] === 'messageEmpty')) {
+                return ['_error' => true, 'message' => 'Message not found or empty.'];
+            }
+            if (!isset($msg['media'])) {
+                return ['has_media' => false, 'id' => $msg['id']];
+            }
+
+            return [
+                'has_media' => true,
+                'id' => $msg['id'],
+                'media' => ResponseSanitizer::clean($msg['media']),
+            ];
+        });
     }
 
     /** Raw layer: list the entire TL method catalog. */
