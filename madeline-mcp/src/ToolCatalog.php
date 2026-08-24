@@ -670,7 +670,9 @@ final class ToolCatalog
             if ($id === null) {
                 return ['_error' => true, 'message' => 'cannot resolve peer to an id'];
             }
-            $full = $this->client->call('users.getFullUser', ['id' => $id], $args['session_name'] ?? null);
+            // MadelineProto forbids calling users.getFullUser directly; use the
+            // getFullInfo wrapper which resolves the full user/chat profile.
+            $full = $api->getFullInfo($id);
 
             return ResponseSanitizer::clean($full);
         });
