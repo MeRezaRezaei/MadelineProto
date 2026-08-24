@@ -956,7 +956,7 @@ final class ToolCatalog
         }
         if (isset($msg['media'])) {
             $type = (string) ($msg['media']['_'] ?? 'unknown');
-            $ref = '#' . (int) ($msg['id'] ?? $pid);
+            $ref = (int) ($msg['id'] ?? $pid);
 
             return $includeMedia ? "media:#{$ref}" : "media:{$type}";
         }
