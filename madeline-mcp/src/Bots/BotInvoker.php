@@ -175,4 +175,68 @@ final class BotInvoker
     {
         return ['action' => $action, 'kind' => $kind, 'sent' => false, 'response' => '', 'error' => $why];
     }
+
+    public const QUIET_SECONDS = 2.0;
+    public const POLL_INTERVAL = 1;
+
+    /** @return list<array> incoming non-service messages */
+    public static function incomingOnly(array $messages): array
+    {
+        $out = [];
+        foreach ($messages as $m) {
+            if (\is_array($m) && ($m['_'] ?? 'message') === 'message' && ($m['out'] ?? false) === false) {
+                $out[] = $m;
+            }
+        }
+        return $out;
+    }
+
+    public static function fingerprint(array $m): string
+    {
+        return \md5(((int) ($m['edit_date'] ?? 0)) . '|' . ((string) ($m['message'] ?? '')));
+    }
+
+    /** @return array{max_in_id:int, prints:array<int,string>} */
+    public static function snapshot(array $messages, int $depth = 5): array
+    {
+        $in = self::incomingOnly($messages);
+        $maxIn = 0;
+        $prints = [];
+        foreach ($in as $m) {
+            $id = (int) ($m['id'] ?? 0);
+            $maxIn = \max($maxIn, $id);
+            $prints[$id] = self::fingerprint($m);
+        }
+        return ['max_in_id' => $maxIn, 'prints' => \array_slice($prints, -$depth, null, true)];
+    }
+
+    /**
+     * Ordered NEW/EDIT events between two transcript captures.
+     *
+     * @return list<array{id:int,type:string,text:string,buttons:array}>
+     */
+    public static function diffEvents(array $beforeMsgs, array $afterMsgs): array
+    {
+        $bIdx = [];
+        foreach (self::incomingOnly($beforeMsgs) as $m) {
+            $bIdx[(int) ($m['id'] ?? 0)] = $m;
+        }
+        $events = [];
+        foreach (self::incomingOnly($afterMsgs) as $m) {
+            $id = (int) ($m['id'] ?? 0);
+            $fp = self::fingerprint($m);
+            $was = isset($bIdx[$id]) ? self::fingerprint($bIdx[$id]) : null;
+            if ($was === $fp) {
+                continue;
+            }
+            $events[] = [
+                'id' => $id,
+                'type' => $was === null ? 'new' : 'edit',
+                'text' => \is_string($m['message'] ?? null) ? $m['message'] : '',
+                'buttons' => BotScanner::buttonsOfMessage($m),
+            ];
+        }
+        \usort($events, static fn($a, $b) => $a['id'] <=> $b['id']);
+        return $events;
+    }
 }

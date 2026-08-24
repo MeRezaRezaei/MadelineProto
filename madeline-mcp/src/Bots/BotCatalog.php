@@ -216,6 +216,11 @@ final class BotCatalog
 
     private function readJson(string $file): ?array
     {
+        // NOTE: MadelineProto's global error handler turns even suppressed
+        // warnings into exceptions -> explicit is_file() guard required.
+        if (!\is_file($file)) {
+            return null;
+        }
         $raw = @\file_get_contents($file);
         if ($raw === false) {
             return null;

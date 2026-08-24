@@ -104,6 +104,32 @@ final class BotScanner
         ];
     }
 
+    /** Inline buttons of ONE message, same meta shape as scan maps. */
+    public static function buttonsOfMessage(array $m): array
+    {
+        $out = [];
+        foreach ((array) (($m['reply_markup'] ?? null)['rows'] ?? []) as $row) {
+            foreach ((array) ($row['buttons'] ?? []) as $b) {
+                if (!\is_array($b)) {
+                    continue;
+                }
+                $t = \is_string($b['text'] ?? null) ? $b['text'] : '';
+                if ($t === '') {
+                    continue;
+                }
+                switch ($b['_'] ?? '') {
+                    case 'keyboardButtonUrl':
+                        $out[$t] = ['type' => 'url', 'url' => (string) ($b['url'] ?? ''), 'msg_id' => (int) ($m['id'] ?? 0)];
+                        break;
+                    case 'keyboardButtonCallback':
+                        $out[$t] = ['type' => 'callback', 'data' => \base64_encode((string) ($b['data'] ?? '')), 'msg_id' => (int) ($m['id'] ?? 0)];
+                        break;
+                }
+            }
+        }
+        return $out;
+    }
+
     /** Resolve an action string against a map: '/cmd', inline-button text or reply-button text. */
     public static function classifyAction(string $action, array $map): string
     {
