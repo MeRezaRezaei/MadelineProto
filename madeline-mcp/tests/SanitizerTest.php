@@ -96,6 +96,44 @@ final class SanitizerTest extends TestCase
         $this->assertArrayNotHasKey('data', $d['buttons'][0] ?? []); // payloads stay server-side
     }
 
+    public function testCallMethodProjectsContainers(): void
+    {
+        $raw = [
+            '_' => 'messages.messages',
+            'messages' => [
+                [
+                    '_' => 'message', 'id' => 10, 'out' => true, 'from_id' => 501, 'peer_id' => 9,
+                    'date' => 1700000000, 'message' => 'hello', 'edit_date' => 1700000001,
+                    'reply_to' => ['reply_to_msg_id' => 9], 'flags' => 4, 'mentioned' => false,
+                ],
+                [
+                    '_' => 'message', 'id' => 9, 'out' => false, 'peer_id' => 9,
+                    'date' => 1699999999, 'action' => ['_' => 'messageActionContactSignUp'],
+                ],
+            ],
+            'users' => [['_' => 'user', 'id' => 501, 'first_name' => 'Reza', 'last_name' => 'R', 'bot' => false]],
+            'chats' => [['_' => 'channel', 'id' => 9, 'title' => 'News', 'megagroup' => true]],
+        ];
+        $p = ResponseSanitizer::project('call_method', $raw);
+
+        // messages projected + bounded
+        $this->assertCount(2, $p['messages']);
+        $this->assertSame('out', $p['messages'][0]['dir']);
+        $this->assertSame('in', $p['messages'][1]['dir']);
+        $this->assertSame('hello', $p['messages'][0]['text']);
+        $this->assertSame('Reza R', $p['messages'][0]['from']['name']);
+        $this->assertSame('action:messageActionContactSignUp', $p['messages'][1]['media_type']);
+        $this->assertTrue($p['messages'][0]['edited']);
+        $this->assertSame(9, $p['messages'][0]['reply_to']);
+        // noise dropped, no raw flag booleans leaked
+        $this->assertArrayNotHasKey('flags', $p['messages'][0]);
+        $this->assertArrayNotHasKey('mentioned', $p['messages'][0]);
+
+        // users/chats compacted
+        $this->assertSame('Reza R', $p['users'][0]['name']);
+        $this->assertSame('supergroup', $p['chats'][0]['type']);
+    }
+
     public function testReadProjectionStripsDataKeepsShape(): void
     {
         $in = [

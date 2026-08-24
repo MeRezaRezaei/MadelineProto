@@ -19,6 +19,13 @@ final class ResponseSanitizer
 
     private const BLOB_RE = '/^[A-Za-z0-9+\/=\r\n]{256,}$/';
 
+    /** Upper bounds so a raw call can never blow the proxy's ~20KB cap. */
+    private const MAX_MESSAGES = 25;
+    private const MAX_DIALOGS = 50;
+    private const MAX_LIST = 200;
+    /** Preview length for message bodies inside a list scan (call_method). */
+    private const LIST_TEXT = 200;
+
     /**
      * Compact projection applied to curated hot tools so the AI sees exactly
      * the actionable fields. Everything else goes through clean().
@@ -101,8 +108,196 @@ final class ResponseSanitizer
                     }
                 }
                 return $out;
+
+            case 'call_method':
+                // Raw TL passthrough: apply the same container projection used
+                // by the curated conversation tools so the AI sees resolved,
+                // bounded data instead of a 451KB blob.
+                return self::projectContainers($result);
         }
         return $result;
+    }
+
+    /**
+     * Generic projection for the heavy TL container shapes (messages, dialogs,
+     * users, chats). Reused for every raw call_method result so the AI gets the
+     * same clean shape whether it calls get_conversation or messages.getHistory.
+     */
+    private static function projectContainers(array $result): array
+    {
+        if (isset($result['_error'])) {
+            return $result;
+        }
+
+        $users = [];
+        foreach ((array) ($result['users'] ?? []) as $u) {
+            if (\is_array($u) && isset($u['id'])) {
+                $users[$u['id']] = $u;
+            }
+        }
+        $chats = [];
+        foreach ((array) ($result['chats'] ?? []) as $c) {
+            if (\is_array($c) && isset($c['id'])) {
+                $chats[$c['id']] = $c;
+            }
+        }
+        $msgMap = [];
+        foreach ((array) ($result['messages'] ?? []) as $m) {
+            if (\is_array($m) && isset($m['id'])) {
+                $msgMap[$m['id']] = $m;
+            }
+        }
+
+        if (isset($result['messages']) && \is_array($result['messages'])) {
+            $out = [];
+            foreach (\array_slice($result['messages'], 0, self::MAX_MESSAGES) as $m) {
+                $pm = \is_array($m) ? self::projectMessage($m, $users, $chats) : $m;
+                if (\is_array($pm) && isset($pm['text']) && \mb_strlen($pm['text']) > self::LIST_TEXT) {
+                    $pm['text'] = \mb_substr($pm['text'], 0, self::LIST_TEXT) . '…';
+                }
+                $out[] = $pm;
+            }
+            $result['messages'] = $out;
+        }
+        if (isset($result['dialogs']) && \is_array($result['dialogs'])) {
+            $out = [];
+            foreach (\array_slice($result['dialogs'], 0, self::MAX_DIALOGS) as $d) {
+                $out[] = \is_array($d) ? self::projectDialog($d, $users, $chats, $msgMap) : $d;
+            }
+            $result['dialogs'] = $out;
+        }
+        if (isset($result['users']) && \is_array($result['users'])) {
+            $out = [];
+            foreach ($result['users'] as $u) {
+                $out[] = \is_array($u) ? self::projectUser($u) : $u;
+            }
+            $result['users'] = $out;
+        }
+        if (isset($result['chats']) && \is_array($result['chats'])) {
+            $out = [];
+            foreach ($result['chats'] as $c) {
+                $out[] = \is_array($c) ? self::projectChat($c) : $c;
+            }
+            $result['chats'] = $out;
+        }
+
+        // Names are now embedded in the projected messages/dialogs. For list
+        // scans the raw reference tables are pure bulk (and a dialogs fetch
+        // already carries previews), so drop them to stay under the proxy cap.
+        if (isset($result['dialogs'])) {
+            unset($result['messages'], $result['users'], $result['chats']);
+        } elseif (isset($result['messages'])) {
+            unset($result['users'], $result['chats']);
+        }
+
+        return $result;
+    }
+
+    private static function projectMessage(array $m, array $users, array $chats): array
+    {
+        $fromId = $m['from_id'] ?? $m['peer_id'] ?? null;
+        [$ftype, $fname] = \is_int($fromId) ? self::peerInfo((int) $fromId, $users, $chats) : [null, null];
+
+        $text = '';
+        $mediaType = 'text';
+        if (isset($m['message']) && \is_string($m['message']) && $m['message'] !== '') {
+            $text = $m['message'];
+        } elseif (isset($m['media'])) {
+            $mediaType = 'media:' . ((string) ($m['media']['_'] ?? 'unknown'));
+            $text = $m['message'] ?? '';
+        } elseif (isset($m['action'])) {
+            $mediaType = 'action:' . ((string) ($m['action']['_'] ?? 'unknown'));
+        }
+
+        return [
+            'id' => $m['id'] ?? null,
+            'date' => $m['date'] ?? 0,
+            'dir' => !empty($m['out']) ? 'out' : 'in',
+            'from' => ['id' => $fromId, 'name' => $fname, 'type' => $ftype],
+            'media_type' => $mediaType,
+            'text' => $text,
+            'edited' => isset($m['edit_date']),
+            'reply_to' => ($m['reply_to']['reply_to_msg_id'] ?? null),
+        ];
+    }
+
+    private static function projectDialog(array $d, array $users, array $chats, array $msgMap): array
+    {
+        $pid = $d['peer'] ?? null;
+        [$ptype, $pname] = \is_int($pid) ? self::peerInfo((int) $pid, $users, $chats) : [null, null];
+
+        $preview = '';
+        $last = 0;
+        $topId = $d['top_message'] ?? null;
+        if ($topId !== null && isset($msgMap[$topId])) {
+            $m = $msgMap[$topId];
+            $last = $m['date'] ?? 0;
+            if (isset($m['message']) && \is_string($m['message'])) {
+                $preview = $m['message'];
+            } elseif (isset($m['action'])) {
+                $preview = '[' . ((string) ($m['action']['_'] ?? 'action')) . ']';
+            }
+        } elseif (isset($d['message']) && \is_string($d['message'])) {
+            $preview = $d['message'];
+        }
+
+        return [
+            'peer' => ['id' => $pid, 'name' => $pname, 'type' => $ptype],
+            'unread' => $d['unread_count'] ?? 0,
+            'pinned' => (bool) ($d['pinned'] ?? false),
+            'preview' => \mb_substr($preview, 0, 80),
+            'last_activity' => $last,
+        ];
+    }
+
+    private static function projectUser(array $u): array
+    {
+        $name = \trim(($u['first_name'] ?? '') . ' ' . ($u['last_name'] ?? ''));
+
+        return [
+            'id' => $u['id'] ?? null,
+            'name' => $name !== '' ? $name : ($u['username'] ?? null),
+            'username' => $u['username'] ?? null,
+            'is_bot' => !empty($u['bot']),
+        ];
+    }
+
+    private static function projectChat(array $c): array
+    {
+        $type = match ($c['_'] ?? '') {
+            'channel' => !empty($c['megagroup']) ? 'supergroup' : 'channel',
+            'chat' => 'group',
+            default => (string) ($c['_'] ?? 'chat'),
+        };
+
+        return [
+            'id' => $c['id'] ?? null,
+            'title' => $c['title'] ?? null,
+            'username' => $c['username'] ?? null,
+            'type' => $type,
+        ];
+    }
+
+    private static function peerInfo(int $pid, array $users, array $chats): array
+    {
+        if ($pid > 0) {
+            $u = $users[$pid] ?? null;
+            if ($u) {
+                $name = \trim(($u['first_name'] ?? '') . ' ' . ($u['last_name'] ?? ''));
+
+                return ['user', $name !== '' ? $name : ($u['username'] ?? (string) $pid)];
+            }
+
+            return ['user', (string) $pid];
+        }
+        if (\str_starts_with((string) $pid, '-100')) {
+            $c = $chats[\abs($pid)] ?? null;
+
+            return $c ? ['channel', $c['title'] ?? (string) $pid] : ['channel', (string) $pid];
+        }
+        $c = $chats[\abs($pid)] ?? null;
+
+        return $c ? ['group', $c['title'] ?? (string) $pid] : ['group', (string) $pid];
     }
 
     /**
@@ -119,6 +314,9 @@ final class ResponseSanitizer
             return $len > $maxStr ? \mb_substr($d, 0, $maxStr) . "…[+$len ch]" : $d;
         }
         if (\is_array($d)) {
+            if (\array_is_list($d) && \count($d) > self::MAX_LIST) {
+                $d = \array_slice($d, 0, self::MAX_LIST);
+            }
             $out = [];
             foreach ($d as $k => $v) {
                 if (\is_string($k) && \in_array($k, self::DROP_KEYS, true)) {
