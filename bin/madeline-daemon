@@ -1,0 +1,131 @@
+#!/usr/bin/env php
+<?php declare(strict_types=1);
+
+/**
+ * This file is part of MadelineProto.
+ * MadelineProto is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+ * MadelineProto is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ * See the GNU Affero General Public License for more details.
+ * You should have received a copy of the GNU General Public License along with MadelineProto.
+ * If not, see <http://www.gnu.org/licenses/>.
+ *
+ * @author    Daniil Gentili <daniil@daniil.it>
+ * @copyright 2016-2025 Daniil Gentili <daniil@daniil.it>
+ * @license   https://opensource.org/licenses/AGPL-3.0 AGPLv3
+ * @link https://docs.madelineproto.xyz MadelineProto documentation
+ */
+
+use danog\MadelineProto\Accounts\AccountManager;
+use danog\MadelineProto\Daemon\Daemon;
+use danog\MadelineProto\Db\Cache;
+use danog\MadelineProto\Db\Migrations;
+use danog\MadelineProto\Db\PdoDriver;
+use danog\MadelineProto\Db\RelationalStore;
+use danog\MadelineProto\Sync\SyncLoop;
+
+require __DIR__ . '/../vendor/autoload.php';
+
+$pidFile = '/tmp/madeline-daemon.pid';
+
+// ── argument parsing ────────────────────────────────────────────────────────
+$args = array_slice($argv, 1);
+$subcommand = 'start';
+$dsn = null;
+$redis = null;
+
+foreach ($args as $arg) {
+    if (str_starts_with($arg, '--dsn=')) {
+        $dsn = substr($arg, 6);
+    } elseif (str_starts_with($arg, '--redis=')) {
+        $redis = substr($arg, 8);
+    } elseif ($arg === 'start' || $arg === 'stop' || $arg === 'status') {
+        $subcommand = $arg;
+    } elseif (!str_starts_with($arg, '-')) {
+        $subcommand = $arg;
+    }
+}
+
+// Fallback to environment variables.
+$dsn ??= $_ENV['MADLINE_DSN'] ?? getenv('MADLINE_DSN') ?: null;
+$redis ??= $_ENV['MADLINE_REDIS'] ?? getenv('MADLINE_REDIS') ?: null;
+
+// ── status ──────────────────────────────────────────────────────────────────
+if ($subcommand === 'status') {
+    if (file_exists($pidFile) && (int) file_get_contents($pidFile) > 0) {
+        $pid = (int) file_get_contents($pidFile);
+        if (posix_kill($pid, 0)) {
+            echo "Daemon running (PID {$pid})\n";
+            exit(0);
+        }
+        echo "PID file stale (PID {$pid} not alive)\n";
+        exit(1);
+    }
+    echo "Daemon not running\n";
+    exit(1);
+}
+
+// ── stop ────────────────────────────────────────────────────────────────────
+if ($subcommand === 'stop') {
+    if (!file_exists($pidFile)) {
+        echo "No PID file; daemon not running\n";
+        exit(0);
+    }
+    $pid = (int) file_get_contents($pidFile);
+    if ($pid > 0 && posix_kill($pid, SIGTERM)) {
+        echo "Sent SIGTERM to PID {$pid}\n";
+    } else {
+        echo "PID {$pid} not alive or already stopped\n";
+    }
+    @unlink($pidFile);
+    exit(0);
+}
+
+// ── start ───────────────────────────────────────────────────────────────────
+if ($dsn === null || $dsn === '') {
+    fwrite(STDERR, "Error: --dsn or MADLINE_DSN is required.\n");
+    exit(1);
+}
+if ($redis === null || $redis === '') {
+    fwrite(STDERR, "Error: --redis or MADLINE_REDIS is required.\n");
+    exit(1);
+}
+
+$driver = new PdoDriver($dsn);
+(new Migrations($driver))->migrate();
+$store = new RelationalStore($driver);
+$accounts = new AccountManager($store);
+$cache = new Cache($redis);
+$sync = new SyncLoop($accounts, $store, $cache);
+
+$daemon = new Daemon($driver, $cache, $accounts, $sync);
+
+// Write PID file.
+file_put_contents($pidFile, (string) getmypid());
+
+// Install signal handlers that call stop() + remove PID file + exit.
+if (function_exists('pcntl_signal')) {
+    pcntl_signal(SIGTERM, static function () use ($daemon, $pidFile): void {
+        $daemon->stop();
+        @unlink($pidFile);
+        exit(0);
+    });
+    pcntl_signal(SIGINT, static function () use ($daemon, $pidFile): void {
+        $daemon->stop();
+        @unlink($pidFile);
+        exit(0);
+    });
+}
+
+$daemon->boot();
+
+// Block until signal — dispatch pending signals each iteration.
+while ($daemon->isRunning()) {
+    if (function_exists('pcntl_signal_dispatch')) {
+        pcntl_signal_dispatch();
+    }
+    usleep(200_000); // 200 ms
+}
+
+// If we exited the loop normally (shouldn't in production), clean up.
+@unlink($pidFile);
+exit(0);

@@ -1,0 +1,16 @@
+[Unit]
+Description=MadelineProto Daemon
+After=network.target postgresql.service redis.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/php /path/to/bin/madeline-daemon start
+ExecStop=/usr/bin/php /path/to/bin/madeline-daemon stop
+PIDFile=/tmp/madeline-daemon.pid
+Restart=always
+RestartSec=5
+Environment=MADLINE_DSN=pgsql:host=127.0.0.1;port=5432;dbname=madeline;user=madeline;password=madeline
+Environment=MADLINE_REDIS=tcp://127.0.0.1:16379
+
+[Install]
+WantedBy=multi-user.target

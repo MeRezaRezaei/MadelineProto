@@ -48,4 +48,9 @@ interface SqlDriver
      * Underlying PDO connection (for dialect-specific operations).
      */
     public function getPdo(): \PDO;
+
+    /**
+     * Release all underlying resources (close the PDO connection).
+     */
+    public function close(): void;
 }

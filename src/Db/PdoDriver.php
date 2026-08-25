@@ -31,7 +31,7 @@ use RuntimeException;
  */
 class PdoDriver implements SqlDriver
 {
-    private PDO $pdo;
+    private ?PDO $pdo;
     private string $dialect;
 
     public function __construct(string $dsn, ?string $username = null, ?string $password = null, array $options = [])
@@ -73,6 +73,11 @@ class PdoDriver implements SqlDriver
         $stmt->execute($params);
 
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    public function close(): void
+    {
+        $this->pdo = null;
     }
 
     /**
