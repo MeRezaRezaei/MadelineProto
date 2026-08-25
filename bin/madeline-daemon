@@ -71,13 +71,27 @@ if ($subcommand === 'stop') {
         exit(0);
     }
     $pid = (int) file_get_contents($pidFile);
-    if ($pid > 0 && posix_kill($pid, SIGTERM)) {
-        echo "Sent SIGTERM to PID {$pid}\n";
-    } else {
+    if ($pid <= 0 || !posix_kill($pid, 0)) {
         echo "PID {$pid} not alive or already stopped\n";
+        @unlink($pidFile);
+        exit(0);
     }
+    posix_kill($pid, SIGTERM);
+    echo "Sent SIGTERM to PID {$pid}; waiting for exit…\n";
+
+    // Poll until the process stops, max 5 seconds.
+    $deadline = time() + 5;
+    while (time() < $deadline) {
+        if (!posix_kill($pid, 0)) {
+            echo "PID {$pid} exited\n";
+            @unlink($pidFile);
+            exit(0);
+        }
+        usleep(100_000); // 100 ms
+    }
+    echo "Warning: PID {$pid} did not exit within 5 s; unlinking PID file anyway\n";
     @unlink($pidFile);
-    exit(0);
+    exit(1);
 }
 
 // ── start ───────────────────────────────────────────────────────────────────
@@ -102,20 +116,8 @@ $daemon = new Daemon($driver, $cache, $accounts, $sync);
 // Write PID file.
 file_put_contents($pidFile, (string) getmypid());
 
-// Install signal handlers that call stop() + remove PID file + exit.
-if (function_exists('pcntl_signal')) {
-    pcntl_signal(SIGTERM, static function () use ($daemon, $pidFile): void {
-        $daemon->stop();
-        @unlink($pidFile);
-        exit(0);
-    });
-    pcntl_signal(SIGINT, static function () use ($daemon, $pidFile): void {
-        $daemon->stop();
-        @unlink($pidFile);
-        exit(0);
-    });
-}
-
+// Signal handlers are installed by Daemon::boot(); we just wait for them
+// to set running=false.
 $daemon->boot();
 
 // Block until signal — dispatch pending signals each iteration.
