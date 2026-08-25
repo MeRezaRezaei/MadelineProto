@@ -134,4 +134,5 @@ final class Cache
     {
         return 'file:' . $volumeId . ':' . $localId;
     }
+
 }
