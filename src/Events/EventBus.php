@@ -34,12 +34,19 @@ use function Amp\Redis\createRedisConnector;
  * The dispatcher subscribes on a separate connection and dispatches
  * to registered listeners whose filter matches.
  *
+ * Two-connection hot-reload design:
+ * - Connection A (subscriber-only): subscribes to madeline:updates, never
+ *   used for anything else so subscriptions are never dropped by control traffic.
+ * - Connection B (control publisher): RedisClient used to publish register/
+ *   unregister/reload commands on madeline:control. Never subscribes.
+ *
  * Design for testability: inject RedisClient / RedisConnector instances
  * (or DSN strings) so no real network is needed in unit tests.
  */
 final class EventBus
 {
     private const CHANNEL_UPDATES = 'madeline:updates';
+    private const CHANNEL_CONTROL = 'madeline:control';
     private const DEDUP_PREFIX = 'madeline:dedup:';
     private const DEDUP_DEFAULT_MESSAGE_TTL = 3600;
     private const DEDUP_DEFAULT_SERVICE_TTL = 300;
@@ -47,28 +54,49 @@ final class EventBus
     /** @var array<string, list<array{callable, array}>> */
     private array $listeners = [];
 
+    /** @var array<string, array{string, callable, array}> Handler registry keyed by id: [type, callable, filter]. */
+    private array $handlerRegistry = [];
+
     /** @var array<string, int> In-memory seen-set for fast local dedup (value = expiry timestamp). */
     private array $seenKeys = [];
 
     private ?RedisSubscription $subscription = null;
     private bool $running = false;
+    private int $connectionAReconnects = 0;
 
+    private readonly array $deduplicationTtl;
     private readonly RedisClient $publisherConn;
+    private readonly RedisClient $controlConn;
     private readonly RedisSubscriber $subscriberConn;
 
     /**
-     * @param RedisClient|string    $publisher          Connection for publishing (accounts emit here).
-     * @param RedisConnector|string $subscriber         Connector or DSN for the blocking subscription.
-     * @param array<string,int>     $deduplicationTtl   TTL per update type (seconds).
+     * @param RedisClient|string    $publisher          Connection for publishing updates (accounts emit here).
+     * @param RedisConnector|string $subscriber         Connector or DSN for Connection A (updates subscriber).
+     * @param array<string,int>|RedisClient|string $deduplicationTtlOrControl  TTL per update type (seconds) OR control connection for backward compatibility.
+     * @param RedisClient|string    $control            Connection for publishing control commands (Connection B).
      */
     public function __construct(
         RedisClient|string $publisher,
         RedisConnector|string $subscriber,
-        private readonly array $deduplicationTtl = ['messages' => 3600, 'service' => 300],
+        array|RedisClient|string $deduplicationTtlOrControl = ['messages' => 3600, 'service' => 300],
+        RedisClient|string $control = '',
     ) {
         $this->publisherConn = \is_string($publisher)
             ? $this->createClient($publisher)
             : $publisher;
+
+        // Handle backward compatibility: 3rd arg could be dedupTtl array or control connection
+        if (\is_array($deduplicationTtlOrControl)) {
+            $this->deduplicationTtl = $deduplicationTtlOrControl;
+            $controlConn = $control;
+        } else {
+            $this->deduplicationTtl = ['messages' => 3600, 'service' => 300];
+            $controlConn = $deduplicationTtlOrControl;
+        }
+
+        $this->controlConn = (\is_string($controlConn) && $controlConn !== '')
+            ? $this->createClient($controlConn)
+            : ($controlConn instanceof RedisClient ? $controlConn : $this->publisherConn);
 
         $connector = \is_string($subscriber)
             ? createRedisConnector(RedisConfig::fromUri($subscriber))
@@ -186,8 +214,104 @@ final class EventBus
     }
 
     /**
-     * Start the dispatcher loop — subscribes to the updates channel and
-     * dispatches to registered listeners.
+     * Register a handler via the control channel (Connection B).
+     *
+     * Stores the callable in the local handler registry and publishes
+     * a register command on madeline:control so peer processes can
+     * pick it up.
+     *
+     * @param string   $type    Update type to listen for.
+     * @param string   $id      Stable handler identifier for later unregistration.
+     * @param callable $handler Receives (int $accountId, string $type, array $data).
+     * @param array    $filter  Optional key/value filter.
+     *
+     * @return string The handler id (same as $id).
+     */
+    public function controlRegister(string $type, string $id, callable $handler, array $filter = []): string
+    {
+        $this->handlerRegistry[$id] = [$type, $handler, $filter];
+        $this->listeners[$type][] = [$handler, $filter];
+
+        $this->controlConn->publish(
+            self::CHANNEL_CONTROL,
+            \json_encode([
+                'action' => 'register',
+                'type' => $type,
+                'id' => $id,
+            ], \JSON_THROW_ON_ERROR),
+        );
+
+        return $id;
+    }
+
+    /**
+     * Unregister a handler by its id.
+     *
+     * Removes the handler from the in-memory registry AND the active
+     * listeners list, then publishes an unregister command.
+     */
+    public function controlUnregister(string $id): void
+    {
+        if (!isset($this->handlerRegistry[$id])) {
+            return;
+        }
+
+        [, $handler, $filter] = $this->handlerRegistry[$id];
+        unset($this->handlerRegistry[$id]);
+
+        foreach ($this->listeners as $type => $entries) {
+            $this->listeners[$type] = \array_values(\array_filter(
+                $entries,
+                static fn (array $entry): bool => $entry[0] !== $handler || $entry[1] !== $filter,
+            ));
+            if ($this->listeners[$type] === []) {
+                unset($this->listeners[$type]);
+            }
+        }
+
+        $this->controlConn->publish(
+            self::CHANNEL_CONTROL,
+            \json_encode([
+                'action' => 'unregister',
+                'id' => $id,
+            ], \JSON_THROW_ON_ERROR),
+        );
+    }
+
+    /**
+     * Reload the handler registry without dropping Connection A.
+     *
+     * The updates subscription (Connection A) is never touched; only
+     * the in-memory listeners array is rebuilt from the handler registry.
+     */
+    public function reload(): void
+    {
+        $newListeners = [];
+        foreach ($this->handlerRegistry as [$type, $handler, $filter]) {
+            $newListeners[$type][] = [$handler, $filter];
+        }
+        $this->listeners = $newListeners;
+
+        // Publish reload command so peer processes can rebuild too.
+        $this->controlConn->publish(
+            self::CHANNEL_CONTROL,
+            \json_encode([
+                'action' => 'reload',
+                'handler_ids' => \array_keys($this->handlerRegistry),
+            ], \JSON_THROW_ON_ERROR),
+        );
+    }
+
+    /**
+     * Number of times Connection A has been reconnected (should stay 0).
+     */
+    public function getConnectionAReconnects(): int
+    {
+        return $this->connectionAReconnects;
+    }
+
+    /**
+     * Start the dispatcher loop — subscribes to the updates channel (Connection A).
      */
     public function start(): void
     {
@@ -196,6 +320,7 @@ final class EventBus
         }
         $this->running = true;
 
+        // Connection A — updates subscriber (never reconnected during reload).
         $this->subscription = $this->subscriberConn->subscribe(self::CHANNEL_UPDATES);
         $subscription = $this->subscription;
 
