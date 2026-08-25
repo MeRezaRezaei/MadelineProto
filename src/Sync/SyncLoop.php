@@ -77,6 +77,7 @@ final class SyncLoop
         foreach ($this->accounts->listAccounts() as $account) {
             $accountId = (int) $account['id'];
             $data = $this->provider->pull($accountId);
+            $userId = null;
 
             $user = $data['user'] ?? null;
             if (is_array($user) && isset($user['user_id'])) {
@@ -123,7 +124,9 @@ final class SyncLoop
                 $username = $peer['username'] ?? null;
                 $phone = $peer['phone'] ?? null;
                 $this->store->indexPeer($peerId, $type, $username, $phone);
-                $this->store->linkAccountEntity($accountId, $peerId, $type);
+                if ($peerId !== $userId) {
+                    $this->store->linkAccountEntity($accountId, $peerId, $type);
+                }
                 if ($username !== null) {
                     $keys[] = Cache::peerKey((string) $username);
                 }

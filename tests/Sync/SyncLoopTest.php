@@ -140,10 +140,11 @@ class SyncLoopTest extends TestCase
         $this->assertCount(1, $users, 'exactly one users row');
         $this->assertSame(777, (int) $users[0]['user_id']);
 
-        $links = $this->driver->query('SELECT account_id, entity_id FROM account_entities ORDER BY account_id');
+        $links = $this->driver->query('SELECT account_id, entity_id, relationship FROM account_entities ORDER BY account_id');
         $this->assertCount(2, $links, 'two account→entity links (A→777, B→777)');
         $this->assertSame([1, 777], [(int) $links[0]['account_id'], (int) $links[0]['entity_id']]);
         $this->assertSame([2, 777], [(int) $links[1]['account_id'], (int) $links[1]['entity_id']]);
+        $this->assertSame('self', $links[0]['relationship']);
 
         // Two message rows, both attributable to sender 777 (cross-account).
         $messages = $this->driver->query('SELECT peer_id, id FROM messages ORDER BY peer_id');
