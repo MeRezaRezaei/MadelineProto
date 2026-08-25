@@ -16,6 +16,7 @@
 
 namespace danog\MadelineProto\Events;
 
+use Amp\Redis\Command\Option\SetOptions;
 use Amp\Redis\RedisClient;
 use Amp\Redis\RedisConfig;
 use Amp\Redis\RedisSubscriber;
@@ -39,9 +40,15 @@ use function Amp\Redis\createRedisConnector;
 final class EventBus
 {
     private const CHANNEL_UPDATES = 'madeline:updates';
+    private const DEDUP_PREFIX = 'madeline:dedup:';
+    private const DEDUP_DEFAULT_MESSAGE_TTL = 3600;
+    private const DEDUP_DEFAULT_SERVICE_TTL = 300;
 
     /** @var array<string, list<array{callable, array}>> */
     private array $listeners = [];
+
+    /** @var array<string, int> In-memory seen-set for fast local dedup (value = expiry timestamp). */
+    private array $seenKeys = [];
 
     private ?RedisSubscription $subscription = null;
     private bool $running = false;
@@ -71,7 +78,72 @@ final class EventBus
     }
 
     /**
+     * Compute a stable dedup key for an update.
+     *
+     * @param array $data Payload — must contain 'peer_id'+'message_id',
+     *                    'pts', or 'update_id' for a specific key.
+     */
+    public static function computeDedupKey(int $accountId, string $type, array $data): string
+    {
+        $isMessage = \str_starts_with($type, 'update') && isset($data['peer_id'], $data['message_id']);
+        if ($isMessage) {
+            return 'msg:' . $data['peer_id'] . ':' . $data['message_id'];
+        }
+        if (isset($data['pts'])) {
+            return 'pts:' . $accountId . ':' . $data['pts'];
+        }
+        if (isset($data['update_id'])) {
+            return 'update:' . $accountId . ':' . $data['update_id'];
+        }
+        return 'update:' . $accountId . ':' . $type;
+    }
+
+    /**
+     * Check whether a dedup key has been seen (Redis SETNX).
+     *
+     * Returns true if the key was already present (duplicate), false if
+     * this call was the first to set it (not duplicate).
+     *
+     * @param int $ttlSeconds TTL for the Redis key (seconds).
+     */
+    public function isDuplicate(string $dedupKey, int $ttlSeconds = self::DEDUP_DEFAULT_MESSAGE_TTL): bool
+    {
+        $now = \time();
+        if (isset($this->seenKeys[$dedupKey]) && $this->seenKeys[$dedupKey] > $now) {
+            return true;
+        }
+        unset($this->seenKeys[$dedupKey]);
+
+        $redisKey = self::DEDUP_PREFIX . $dedupKey;
+        $set = $this->publisherConn->set(
+            $redisKey,
+            '1',
+            (new SetOptions())->withTtl($ttlSeconds)->withoutOverwrite(),
+        );
+
+        $this->seenKeys[$dedupKey] = $now + $ttlSeconds;
+
+        return !$set;
+    }
+
+    /**
+     * Explicitly mark a dedup key as seen in Redis.
+     */
+    public function setSeen(string $dedupKey, int $ttlSeconds = self::DEDUP_DEFAULT_MESSAGE_TTL): void
+    {
+        $this->publisherConn->set(
+            self::DEDUP_PREFIX . $dedupKey,
+            '1',
+            (new SetOptions())->withTtl($ttlSeconds),
+        );
+        $this->seenKeys[$dedupKey] = \time() + $ttlSeconds;
+    }
+
+    /**
      * Publish an update from one account into the bus.
+     *
+     * The update is deduped across accounts: if the computed dedup key
+     * has already been seen, the publish is skipped.
      *
      * @param int    $accountId Originating account.
      * @param string $type      Update type (e.g. "updateNewMessage").
@@ -79,12 +151,24 @@ final class EventBus
      */
     public function emit(int $accountId, string $type, array $data): void
     {
+        $dedupKey = self::computeDedupKey($accountId, $type, $data);
+
+        $isMessage = \str_starts_with($type, 'update') && isset($data['peer_id'], $data['message_id']);
+        $ttl = $isMessage
+            ? ($this->deduplicationTtl['messages'] ?? self::DEDUP_DEFAULT_MESSAGE_TTL)
+            : ($this->deduplicationTtl['service'] ?? self::DEDUP_DEFAULT_SERVICE_TTL);
+
+        if ($this->isDuplicate($dedupKey, $ttl)) {
+            return;
+        }
+
         $this->publisherConn->publish(
             self::CHANNEL_UPDATES,
             \json_encode([
                 'account_id' => $accountId,
                 'type' => $type,
                 'data' => $data,
+                'dedup_key' => $dedupKey,
             ], \JSON_THROW_ON_ERROR),
         );
     }

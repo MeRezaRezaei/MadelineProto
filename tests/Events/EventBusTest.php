@@ -46,6 +46,27 @@ class EventBusTest extends AsyncTestCase
         }
 
         $this->prefix = 'mp-evtbus-' . bin2hex(random_bytes(4)) . ':';
+
+        $this->cleanDedupKeys();
+    }
+
+    protected function tearDown(): void
+    {
+        if (isset($this->raw)) {
+            $this->cleanDedupKeys();
+        }
+
+        parent::tearDown();
+    }
+
+    private function cleanDedupKeys(): void
+    {
+        $keys = $this->raw->execute('keys', 'madeline:dedup:*');
+        if (\is_array($keys)) {
+            foreach ($keys as $key) {
+                $this->raw->execute('del', $key);
+            }
+        }
     }
 
     /**
