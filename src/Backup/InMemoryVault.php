@@ -82,16 +82,32 @@ final class InMemoryVault implements VaultInterface
         return $this->data[$channelId][$msgId][1];
     }
 
-    /** @return array<int, array<int, string>> channelId => msgId => content (non-manifest) */
+    /** @return list<string> all uploaded chunk contents */
     public function chunks(): array
     {
-        return $this->filter(static fn (string $name): bool => !str_starts_with($name, 'manifest-'));
+        $out = [];
+        foreach ($this->data as $entries) {
+            foreach ($entries as [$name, $content]) {
+                if (!str_starts_with($name, 'manifest-')) {
+                    $out[] = $content;
+                }
+            }
+        }
+        return $out;
     }
 
-    /** @return array<int, array<int, string>> channelId => msgId => content (manifests only) */
+    /** @return list<array{0: string, 1: string}> all uploaded manifests [name, content] */
     public function manifests(): array
     {
-        return $this->filter(static fn (string $name): bool => str_starts_with($name, 'manifest-'));
+        $out = [];
+        foreach ($this->data as $entries) {
+            foreach ($entries as [$name, $content]) {
+                if (str_starts_with($name, 'manifest-')) {
+                    $out[] = [$name, $content];
+                }
+            }
+        }
+        return $out;
     }
 
     private function nextMsg(int $channelId): int
