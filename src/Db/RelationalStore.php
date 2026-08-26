@@ -226,6 +226,7 @@ class RelationalStore
             'media' => $msg['media'] ?? null,
             'entities' => $msg['entities'] ?? null,
             'raw' => $msg['raw'] ?? null,
+            'deleted_at' => $msg['deleted_at'] ?? null,
         ], ['peer_id', 'id']);
     }
 

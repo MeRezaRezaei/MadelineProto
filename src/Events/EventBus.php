@@ -43,7 +43,7 @@ use function Amp\Redis\createRedisConnector;
  * Design for testability: inject RedisClient / RedisConnector instances
  * (or DSN strings) so no real network is needed in unit tests.
  */
-final class EventBus
+class EventBus
 {
     private const CHANNEL_UPDATES = 'madeline:updates';
     private const CHANNEL_CONTROL = 'madeline:control';

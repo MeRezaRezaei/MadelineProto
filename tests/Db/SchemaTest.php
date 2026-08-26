@@ -180,7 +180,10 @@ class SchemaTest extends TestCase
         (new Migrations($driver))->migrate();
 
         $rows = $driver->query('SELECT name FROM _migrations');
-        $this->assertSame(['0001_schema.sqlite.sql'], array_column($rows, 'name'));
+        $this->assertSame(
+            ['0001_schema.sqlite.sql', '0002_messages_deleted_at.sqlite.sql'],
+            array_column($rows, 'name')
+        );
         $this->assertTrue(true);
     }
 

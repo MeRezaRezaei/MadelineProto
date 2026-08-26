@@ -31,7 +31,7 @@ use RuntimeException;
  * static {@see Cache::userKey()}, {@see Cache::peerKey()}, … helpers and an
  * optional instance prefix.
  */
-final class Cache
+class Cache
 {
     private RedisClient $redis;
     private string $prefix;
