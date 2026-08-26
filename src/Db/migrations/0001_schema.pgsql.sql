@@ -98,3 +98,20 @@ CREATE TABLE IF NOT EXISTS account_entities (
     relationship TEXT,
     PRIMARY KEY (account_id, entity_id)
 );
+
+CREATE TABLE IF NOT EXISTS sync_targets (
+    peer_id BIGINT PRIMARY KEY,
+    type TEXT NOT NULL,
+    history_since TIMESTAMPTZ NULL,
+    enabled BOOLEAN NOT NULL DEFAULT TRUE
+);
+CREATE INDEX IF NOT EXISTS idx_sync_targets_enabled ON sync_targets (enabled);
+
+CREATE TABLE IF NOT EXISTS fetch_jobs (
+    id BIGSERIAL PRIMARY KEY,
+    peer_id BIGINT NOT NULL,
+    until_date TIMESTAMPTZ NULL,
+    attempts INTEGER NOT NULL DEFAULT 0,
+    status TEXT NOT NULL DEFAULT 'pending'
+);
+CREATE INDEX IF NOT EXISTS idx_fetch_jobs_status ON fetch_jobs (status);

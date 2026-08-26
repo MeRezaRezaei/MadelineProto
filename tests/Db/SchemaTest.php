@@ -40,6 +40,8 @@ class SchemaTest extends TestCase
         'dialogs',
         'files',
         'account_entities',
+        'sync_targets',
+        'fetch_jobs',
     ];
 
     private function migrateSqlite(): PdoDriver
@@ -55,6 +57,7 @@ class SchemaTest extends TestCase
         $driver = $this->migrateSqlite();
         $rows = $driver->query(
             "SELECT name FROM sqlite_master WHERE type='table' AND name != '_migrations'"
+            . " AND name NOT LIKE 'sqlite_%'"
         );
         $tables = array_column($rows, 'name');
         sort($tables);
@@ -63,6 +66,23 @@ class SchemaTest extends TestCase
         sort($expected);
 
         $this->assertSame($expected, $tables);
+    }
+
+    public function testSyncTargetsAndFetchJobsTablesExist(): void
+    {
+        $driver = new PdoDriver('sqlite::memory:');
+        (new Migrations($driver))->migrate();
+
+        $targets = $driver->query("SELECT name FROM sqlite_master WHERE type='table' AND name IN ('sync_targets','fetch_jobs')");
+        $names = array_column($targets, 'name');
+        $this->assertContains('sync_targets', $names);
+        $this->assertContains('fetch_jobs', $names);
+
+        $cols = $driver->query("PRAGMA table_info(sync_targets)");
+        $this->assertSame(
+            ['peer_id', 'type', 'history_since', 'enabled'],
+            array_column($cols, 'name'),
+        );
     }
 
     public function testUserIdIsPrimaryKeyAndNotAutoIncrementSqlite(): void
