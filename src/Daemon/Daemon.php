@@ -20,6 +20,7 @@ use danog\MadelineProto\Accounts\AccountManager;
 use danog\MadelineProto\Db\Cache;
 use danog\MadelineProto\Db\SqlDriver;
 use danog\MadelineProto\Sync\SyncLoop;
+use Revolt\EventLoop;
 
 /**
  * Systemd-managed daemon that owns all account sessions and backing stores.
@@ -33,6 +34,9 @@ use danog\MadelineProto\Sync\SyncLoop;
 final class Daemon
 {
     private bool $running = false;
+
+    /** @var list<string> EventLoop signal-watcher ids, cancelled on stop(). */
+    private array $signalWatchers = [];
 
     public function __construct(
         private readonly SqlDriver $driver,
@@ -55,15 +59,13 @@ final class Daemon
         $this->running = true;
         $this->sync->start();
 
-        if (\function_exists('pcntl_signal')) {
-            $daemon = $this;
-            \pcntl_signal(\SIGTERM, static function () use ($daemon): void {
-                $daemon->stop();
-            });
-            \pcntl_signal(\SIGINT, static function () use ($daemon): void {
-                $daemon->stop();
-            });
-        }
+        $daemon = $this;
+        $this->signalWatchers[] = EventLoop::onSignal(\SIGTERM, static function () use ($daemon): void {
+            $daemon->stop();
+        });
+        $this->signalWatchers[] = EventLoop::onSignal(\SIGINT, static function () use ($daemon): void {
+            $daemon->stop();
+        });
     }
 
     /**
@@ -78,6 +80,10 @@ final class Daemon
 
         $this->running = false;
         $this->sync->stop();
+        foreach ($this->signalWatchers as $watcherId) {
+            EventLoop::cancel($watcherId);
+        }
+        $this->signalWatchers = [];
         $this->driver->close();
     }
 
