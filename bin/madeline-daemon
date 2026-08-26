@@ -28,7 +28,6 @@ use danog\MadelineProto\Sync\NullAccountDataProvider;
 use danog\MadelineProto\Sync\SyncLoop;
 use danog\MadelineProto\Sync\SyncTargets;
 use danog\MadelineProto\Sync\UpdateHandler;
-use danog\Loop\PeriodicLoop;
 use Revolt\EventLoop;
 
 require __DIR__ . '/../vendor/autoload.php';
@@ -146,18 +145,14 @@ file_put_contents($pidFile, (string) getmypid());
 // once the daemon stops (all referenced watchers cancelled in stop()).
 $daemon->boot();
 
-// Second periodic loop: drain one quota-sliced backfill pass every 60 s.
-// Returning false keeps the loop running (true would stop it).
-$backfillLoop = new PeriodicLoop(
-    static function () use ($backfill): bool {
-        $backfill->run(100, 10);
-
-        return false;
-    },
-    'backfill-loop',
-    60.0,
-);
-$backfillLoop->start();
+// Backfill: drain one quota-sliced pass every 60 s. The repeat watcher is
+// unreferenced so it never keeps the event loop alive; while the daemon runs
+// the referenced sync-loop + signal watchers do, so it still ticks. On SIGTERM
+// those are cancelled, EventLoop::run() returns, and PID cleanup executes.
+$backfillWatcher = EventLoop::repeat(60.0, static function () use ($backfill): void {
+    $backfill->run(100, 10);
+});
+EventLoop::unreference($backfillWatcher);
 
 EventLoop::run();
 
