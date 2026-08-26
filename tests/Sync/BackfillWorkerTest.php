@@ -38,12 +38,16 @@ class BackfillWorkerTest extends TestCase
 
     public function testDrainsJobStoringPagesUntilBoundary(): void
     {
-        // Fake history: messages id 1..30, date descending; boundary until_date = 1700000000.
-        $fetcher = static function (int $peerId, int $offset, int $limit): array {
+        // Fake history: messages id 1..30, date ascending with id; boundary until_date = 1700000000.
+        // Cursor semantics matching getHistory(offset_id, add_offset=0): cursor 0 = newest;
+        // otherwise return ids cursor..cursor-limit+1 descending, clamped at id 1.
+        $fetcher = static function (int $peerId, int $cursor, int $limit): array {
+            $top = $cursor === 0 ? 30 : $cursor - 1;
             $out = [];
-            for ($i = $offset; $i < $offset + $limit && $i < 30; $i++) {
-                $out[] = ['peer_id' => $peerId, 'id' => 30 - $i, 'date' => 1700000100 - $i * 10,
-                          'message' => 'm' . (30 - $i), 'raw' => null];
+            for ($i = 0; $i < $limit && $top - $i >= 1; $i++) {
+                $id = $top - $i;
+                $out[] = ['peer_id' => $peerId, 'id' => $id, 'date' => 1699999800 + $id * 10,
+                          'message' => 'm' . $id, 'raw' => null];
             }
 
             return $out;

@@ -57,8 +57,8 @@ foreach ($args as $arg) {
 }
 
 // Fallback to environment variables.
-$dsn ??= $_ENV['MADLINE_DSN'] ?? getenv('MADLINE_DSN') ?: null;
-$redis ??= $_ENV['MADLINE_REDIS'] ?? getenv('MADLINE_REDIS') ?: null;
+$dsn ??= ($_ENV['MADLINE_DSN'] ?? getenv('MADLINE_DSN')) ?: null;
+$redis ??= ($_ENV['MADLINE_REDIS'] ?? getenv('MADLINE_REDIS')) ?: null;
 
 if ($subcommand !== 'enqueue' && $subcommand !== 'run') {
     fwrite(STDERR, "Usage: madeline-backfill enqueue --dsn=... --redis=... --peer=<id> [--type=channel] [--since=<epoch>|--since=all]\n");

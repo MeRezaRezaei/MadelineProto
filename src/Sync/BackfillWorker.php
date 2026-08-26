@@ -37,10 +37,11 @@ final class BackfillWorker
 
         while ($pagesLeft > 0 && ($job = $this->queue->claim()) !== null) {
             try {
-                $offset = 0;
+                $offset = 0; // opaque id-cursor: 0 = start from newest; otherwise min id of last page
                 $slice = $pagesLeft;
                 for ($p = 0; $p < $slice; $p++) {
                     $page = ($this->fetchPage)($job['peer_id'], $offset, $this->pageSize);
+                    $pagesLeft--; // every fetched page counts against quota, incl. the terminal one
                     if ($page === []) {
                         break; // history exhausted — job done
                     }
@@ -52,8 +53,7 @@ final class BackfillWorker
                         }
                         $this->store->upsertMessage($msg + ['deleted_at' => null]);
                     }
-                    $offset += $this->pageSize;
-                    $pagesLeft--;
+                    $offset = (int) min(array_column($page, 'id')); // pages are id-descending
                 }
                 $this->queue->complete($job['id']);
             } catch (\Throwable) {
@@ -73,7 +73,7 @@ final class BackfillWorker
     public static function getHistoryFetcher(\danog\MadelineProto\API $api): callable
     {
         return static function (int $peerId, int $offset, int $limit) use ($api): array {
-            $result = $api->messages->getHistory(['peer' => $peerId, 'offset_id' => 0, 'limit' => $limit]);
+            $result = $api->messages->getHistory(['peer' => $peerId, 'offset_id' => $offset, 'add_offset' => 0, 'limit' => $limit]);
             $rows = [];
             foreach ($result['messages'] ?? [] as $msg) {
                 $rows[] = [
