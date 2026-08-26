@@ -74,4 +74,18 @@ class FetchQueueTest extends TestCase
         $this->assertSame(0, FetchQueue::quotaSlice(9, 10));
         $this->assertSame(0, FetchQueue::quotaSlice(0, 1));
     }
+
+    public function testSaveCursorRoundTrip(): void
+    {
+        $this->queue->enqueue(100, null);
+        $job = $this->queue->claim();
+        $this->assertSame(0, $job['cursor_id']);              // fresh job starts at the top
+
+        $this->queue->saveCursor($job['id'], 450);
+        $this->queue->requeue($job['id']);                    // quota slice exhausted mid-job
+
+        $resumed = $this->queue->claim();                     // next pass picks it up again
+        $this->assertSame($job['id'], $resumed['id']);
+        $this->assertSame(450, $resumed['cursor_id']);
+    }
 }

@@ -113,6 +113,7 @@ CREATE TABLE IF NOT EXISTS fetch_jobs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     peer_id INTEGER NOT NULL,
     until_date INTEGER NULL,
+    cursor_id BIGINT NOT NULL DEFAULT 0,
     attempts INTEGER NOT NULL DEFAULT 0,
     status TEXT NOT NULL DEFAULT 'pending'
 );

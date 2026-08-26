@@ -76,4 +76,40 @@ class BackfillWorkerTest extends TestCase
 
         $this->assertNotNull($this->queue->claim(), 'job must stay queued');
     }
+
+    public function testSliceExhaustionKeepsJobPendingWithCursorAndLaterResumes(): void
+    {
+        // 500 messages, no boundary: full drain needs 50 pages of 10.
+        $fetcher = static function (int $peerId, int $cursor, int $limit): array {
+            $top = $cursor === 0 ? 500 : $cursor - 1;
+            $out = [];
+            for ($i = 0; $i < $limit && $top - $i >= 1; $i++) {
+                $id = $top - $i;
+                $out[] = ['peer_id' => $peerId, 'id' => $id, 'date' => 1700000000 + $id,
+                          'message' => 'm' . $id, 'raw' => null];
+            }
+
+            return $out;
+        };
+
+        $this->queue->enqueue(100, null);
+
+        $worker = new BackfillWorker($this->store, $this->queue, $fetcher, pageSize: 10);
+        $worker->run(quotaRemaining: 100, costPerPage: 10);   // slice = 5 pages → 50 msgs, no empty page
+
+        // Job must still be claimable, with its cursor past the pages consumed…
+        $job = $this->queue->claim();
+        $this->assertNotNull($job, 'job stays pending after slice exhaustion');
+        $this->assertSame(451, $job['cursor_id']);
+        $this->assertNotNull($this->store->getMessage(100, 500));
+        $this->assertNotNull($this->store->getMessage(100, 451));
+        $this->assertNull($this->store->getMessage(100, 450)); // not yet fetched
+        $this->queue->requeue($job['id']);                     // hand it back for the resume pass
+
+        // …and a later pass with bigger quota drains the rest and completes it.
+        $worker->run(quotaRemaining: 2000, costPerPage: 10);  // slice = 100 pages
+        $this->assertNull($this->queue->claim(), 'job completed on resume');
+        $this->assertNotNull($this->store->getMessage(100, 450));
+        $this->assertNotNull($this->store->getMessage(100, 1));
+    }
 }

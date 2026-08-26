@@ -44,7 +44,7 @@ final class FetchQueue
         );
     }
 
-    /** @return array{id: int, peer_id: int, until_date: ?int}|null */
+    /** @return array{id: int, peer_id: int, until_date: ?int, cursor_id: int}|null */
     public function claim(): ?array
     {
         $rows = $this->driver->query(
@@ -60,7 +60,20 @@ final class FetchQueue
             'id' => (int) $rows[0]['id'],
             'peer_id' => (int) $rows[0]['peer_id'],
             'until_date' => $rows[0]['until_date'] === null ? null : (int) $rows[0]['until_date'],
+            'cursor_id' => (int) $rows[0]['cursor_id'],
         ];
+    }
+
+    /** Persist backfill progress so an interrupted job resumes where it stopped. */
+    public function saveCursor(int $id, int $cursorId): void
+    {
+        $this->driver->exec('UPDATE fetch_jobs SET cursor_id = ? WHERE id = ?', [$cursorId, $id]);
+    }
+
+    /** Return a job to the pending pool without counting an attempt (quota slice exhausted). */
+    public function requeue(int $id): void
+    {
+        $this->driver->exec("UPDATE fetch_jobs SET status = 'pending' WHERE id = ?", [$id]);
     }
 
     public function complete(int $id): void

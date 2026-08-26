@@ -37,7 +37,9 @@ final class UpdateHandler
                 $this->store->upsertMessage($data + ['deleted_at' => null]);
                 $this->cache->delete(Cache::messageKey((int) $data['peer_id'], (int) $data['id']))->await();
             }
-        } elseif ($type === 'updateDeleteMessages' && isset($data['peer_id'], $data['ids'])) {
+        }
+        // TODO: real TG updateDeleteMessages carries channel_id/messages — adapt shape here when EventHandler lands.
+        elseif ($type === 'updateDeleteMessages' && isset($data['peer_id'], $data['ids'])) {
             foreach ($data['ids'] as $mid) {
                 $row = $this->store->getMessage((int) $data['peer_id'], (int) $mid);
                 if ($row !== null && $row['deleted_at'] === null) {

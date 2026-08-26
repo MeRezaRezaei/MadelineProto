@@ -37,25 +37,35 @@ final class BackfillWorker
 
         while ($pagesLeft > 0 && ($job = $this->queue->claim()) !== null) {
             try {
-                $offset = 0; // opaque id-cursor: 0 = start from newest; otherwise min id of last page
+                $offset = $job['cursor_id']; // opaque id-cursor: 0 = start from newest; otherwise min id of last page
+                $done = false;
                 $slice = $pagesLeft;
                 for ($p = 0; $p < $slice; $p++) {
                     $page = ($this->fetchPage)($job['peer_id'], $offset, $this->pageSize);
                     $pagesLeft--; // every fetched page counts against quota, incl. the terminal one
                     if ($page === []) {
-                        break; // history exhausted — job done
+                        $done = true; // history exhausted — job done
+                        break;
                     }
+                    $offset = (int) min(array_column($page, 'id')); // pages are id-descending
+                    $this->queue->saveCursor($job['id'], $offset); // persist progress BEFORE rows, so a crash resumes here
                     foreach ($page as $msg) {
                         if ($job['until_date'] !== null
                             && isset($msg['date'])
                             && (int) $msg['date'] < $job['until_date']) {
-                            break 2; // past boundary — job done
+                            $done = true; // past boundary — job done
+                            break 2;
                         }
                         $this->store->upsertMessage($msg + ['deleted_at' => null]);
                     }
-                    $offset = (int) min(array_column($page, 'id')); // pages are id-descending
                 }
-                $this->queue->complete($job['id']);
+                if ($done) {
+                    $this->queue->complete($job['id']);
+                } else {
+                    // Slice exhausted mid-history: keep the job pending with its
+                    // cursor so the next pass resumes instead of silently truncating.
+                    $this->queue->requeue($job['id']);
+                }
             } catch (\Throwable) {
                 $this->queue->fail($job['id']);
 
