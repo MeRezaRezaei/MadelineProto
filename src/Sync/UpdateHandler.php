@@ -41,10 +41,10 @@ final class UpdateHandler
             foreach ($data['ids'] as $mid) {
                 $row = $this->store->getMessage((int) $data['peer_id'], (int) $mid);
                 if ($row !== null && $row['deleted_at'] === null) {
-                    $this->store->upsertMessage(
-                        ['peer_id' => $row['peer_id'], 'id' => $row['id'], 'date' => $row['date'],
-                         'message' => $row['message'], 'raw' => $row['raw'], 'deleted_at' => time()],
-                    );
+                    // $row comes from getMessage (SELECT *), so it already
+                    // carries deleted_at = null; overwrite, don't union (+).
+                    $row['deleted_at'] = time();
+                    $this->store->upsertMessage($row);
                     $this->cache->delete(Cache::messageKey((int) $data['peer_id'], (int) $mid))->await();
                 }
             }
