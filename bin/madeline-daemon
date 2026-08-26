@@ -22,6 +22,7 @@ use danog\MadelineProto\Db\Migrations;
 use danog\MadelineProto\Db\PdoDriver;
 use danog\MadelineProto\Db\RelationalStore;
 use danog\MadelineProto\Sync\SyncLoop;
+use Revolt\EventLoop;
 
 require __DIR__ . '/../vendor/autoload.php';
 
@@ -116,18 +117,12 @@ $daemon = new Daemon($driver, $cache, $accounts, $sync);
 // Write PID file.
 file_put_contents($pidFile, (string) getmypid());
 
-// Signal handlers are installed by Daemon::boot(); we just wait for them
-// to set running=false.
+// Daemon::boot() installs signal watchers (via Revolt's EventLoop::onSignal);
+// EventLoop::run() drives the sync loop and dispatches signals. It returns
+// once the daemon stops (all referenced watchers cancelled in stop()).
 $daemon->boot();
+EventLoop::run();
 
-// Block until signal — dispatch pending signals each iteration.
-while ($daemon->isRunning()) {
-    if (function_exists('pcntl_signal_dispatch')) {
-        pcntl_signal_dispatch();
-    }
-    usleep(200_000); // 200 ms
-}
-
-// If we exited the loop normally (shouldn't in production), clean up.
+// Clean up the PID file after a clean shutdown.
 @unlink($pidFile);
 exit(0);
