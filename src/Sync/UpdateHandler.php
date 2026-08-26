@@ -20,7 +20,7 @@ use danog\MadelineProto\Db\Cache;
 use danog\MadelineProto\Db\RelationalStore;
 use danog\MadelineProto\Events\EventBus;
 
-final class UpdateHandler
+final class UpdateHandler implements UpdateProcessor
 {
     public function __construct(
         private RelationalStore $store,
