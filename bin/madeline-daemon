@@ -16,6 +16,7 @@
  */
 
 use danog\MadelineProto\Accounts\AccountManager;
+use danog\MadelineProto\API;
 use danog\MadelineProto\Daemon\Daemon;
 use danog\MadelineProto\Db\Cache;
 use danog\MadelineProto\Db\Migrations;
@@ -39,12 +40,15 @@ $args = array_slice($argv, 1);
 $subcommand = 'start';
 $dsn = null;
 $redis = null;
+$session = null;
 
 foreach ($args as $arg) {
     if (str_starts_with($arg, '--dsn=')) {
         $dsn = substr($arg, 6);
     } elseif (str_starts_with($arg, '--redis=')) {
         $redis = substr($arg, 8);
+    } elseif (str_starts_with($arg, '--session=')) {
+        $session = substr($arg, 10);
     } elseif ($arg === 'start' || $arg === 'stop' || $arg === 'status') {
         $subcommand = $arg;
     } elseif (!str_starts_with($arg, '-')) {
@@ -55,6 +59,7 @@ foreach ($args as $arg) {
 // Fallback to environment variables.
 $dsn ??= $_ENV['MADLINE_DSN'] ?? getenv('MADLINE_DSN') ?: null;
 $redis ??= $_ENV['MADLINE_REDIS'] ?? getenv('MADLINE_REDIS') ?: null;
+$session ??= $_ENV['MADLINE_SESSION'] ?? getenv('MADLINE_SESSION') ?: null;
 
 // ── status ──────────────────────────────────────────────────────────────────
 if ($subcommand === 'status') {
@@ -122,14 +127,19 @@ $bus = new EventBus($redis, $redis, [], $redis);
 $handler = new UpdateHandler($store, $cache, $bus, new SyncTargets($driver));
 // Real TG updates arrive via MadelineProto's EventHandler calling $handler->process(...).
 
-// Gradual backfill: queue-driven, quota-sliced, drained by the loop below.
-$backfill = new BackfillWorker(
-    $store,
-    new FetchQueue($driver),
-    // TODO: replace with BackfillWorker::getHistoryFetcher($api) once API session wiring lands
-    static fn (): array => [],
-    100,
-);
+// Gradual backfill: queue-driven, quota-sliced, drained by the watcher below.
+// The history fetcher needs a logged-in MadelineProto session; without one the
+// loop must not run: an empty-page fetcher makes BackfillWorker treat every
+// claimed job as exhausted history and delete it (silent job loss).
+$backfill = null;
+if ($session !== null && $session !== '') {
+    $backfill = new BackfillWorker(
+        $store,
+        new FetchQueue($driver),
+        BackfillWorker::getHistoryFetcher(new API($session)),
+        100,
+    );
+}
 
 // SyncLoop keeps periodic cache invalidation; the live update path above
 // supersedes the null provider for real traffic (kept for SyncLoop's shape).
@@ -149,10 +159,18 @@ $daemon->boot();
 // unreferenced so it never keeps the event loop alive; while the daemon runs
 // the referenced sync-loop + signal watchers do, so it still ticks. On SIGTERM
 // those are cancelled, EventLoop::run() returns, and PID cleanup executes.
-$backfillWatcher = EventLoop::repeat(60.0, static function () use ($backfill): void {
-    $backfill->run(100, 10);
-});
-EventLoop::unreference($backfillWatcher);
+if ($backfill !== null) {
+    $backfillWatcher = EventLoop::repeat(60.0, static function () use ($backfill): void {
+        try {
+            $backfill->run(100, 10);
+        } catch (\Throwable $e) {
+            fwrite(STDERR, 'Backfill pass failed: ' . $e->getMessage() . \PHP_EOL);
+        }
+    });
+    EventLoop::unreference($backfillWatcher);
+} else {
+    fwrite(STDERR, "Warning: --session/MADLINE_SESSION not given; backfill loop disabled (queued jobs are kept for bin/madeline-backfill run).\n");
+}
 
 EventLoop::run();
 
