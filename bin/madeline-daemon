@@ -21,6 +21,7 @@ use danog\MadelineProto\Db\Cache;
 use danog\MadelineProto\Db\Migrations;
 use danog\MadelineProto\Db\PdoDriver;
 use danog\MadelineProto\Db\RelationalStore;
+use danog\MadelineProto\Sync\NullAccountDataProvider;
 use danog\MadelineProto\Sync\SyncLoop;
 use Revolt\EventLoop;
 
@@ -110,7 +111,7 @@ $driver = new PdoDriver($dsn);
 $store = new RelationalStore($driver);
 $accounts = new AccountManager($store);
 $cache = new Cache($redis);
-$sync = new SyncLoop($accounts, $store, $cache);
+$sync = new SyncLoop($accounts, $store, $cache, new NullAccountDataProvider());
 
 $daemon = new Daemon($driver, $cache, $accounts, $sync);
 
