@@ -155,6 +155,25 @@ class CachedStoreTest extends TestCase
         $this->cached->upsertMessage($msg + ['message' => 'edited'])->await();
         $this->assertFalse($this->cache->exists(Cache::messageKey(7, 99))->await());
     }
+
+    public function testChannelReadThroughAndInvalidation(): void
+    {
+        $channel = [
+            'id' => 100200300,
+            'title' => 'Chan',
+            'username' => 'chan',
+            'raw' => json_encode(['id' => 100200300]),
+        ];
+        $this->cached->upsertChannel($channel)->await();
+
+        $got = $this->cached->getChannel(100200300)->await();
+        $this->assertNotNull($got);
+        $this->assertSame('Chan', $got['title']);
+        $this->assertTrue($this->cache->exists(Cache::channelKey(100200300))->await());
+
+        $this->cached->upsertChannel($channel + ['title' => 'Chan2'])->await();
+        $this->assertFalse($this->cache->exists(Cache::channelKey(100200300))->await());
+    }
 }
 
 /**

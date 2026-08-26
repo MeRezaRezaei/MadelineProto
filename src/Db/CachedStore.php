@@ -94,6 +94,14 @@ final class CachedStore
     /**
      * @return Future<?array<string, mixed>>
      */
+    public function getChannel(int $id): Future
+    {
+        return $this->readThrough(Cache::channelKey($id), fn () => $this->store->getChannel($id));
+    }
+
+    /**
+     * @return Future<?array<string, mixed>>
+     */
     public function getMessage(int $peerId, int $id): Future
     {
         return $this->readThrough(Cache::messageKey($peerId, $id), fn () => $this->store->getMessage($peerId, $id));

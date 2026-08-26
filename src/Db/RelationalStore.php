@@ -180,6 +180,13 @@ class RelationalStore
         return isset($rows[0]) ? $rows[0] : null;
     }
 
+    public function getChannel(int $id): ?array
+    {
+        $rows = $this->driver->query('SELECT * FROM channels WHERE id = ?', [$id]);
+
+        return isset($rows[0]) ? $rows[0] : null;
+    }
+
     // ---------------------------------------------------------------------
     // peer resolution (single map)
     // ---------------------------------------------------------------------

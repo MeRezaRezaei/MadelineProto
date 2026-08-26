@@ -176,4 +176,25 @@ class RelationalStoreTest extends TestCase
         $missing = $this->store->resolvePeer('nobody');
         $this->assertNull($missing);
     }
+
+    public function testChannelRoundTrip(): void
+    {
+        $channel = [
+            'id' => 100200300,
+            'access_hash' => '998877',
+            'title' => 'Test Channel',
+            'username' => 'test_channel',
+            'raw' => json_encode(['id' => 100200300], JSON_THROW_ON_ERROR),
+        ];
+
+        $this->store->upsertChannel($channel);
+
+        $got = $this->store->getChannel(100200300);
+        $this->assertNotNull($got);
+        $this->assertSame('Test Channel', $got['title']);
+        $this->assertSame('test_channel', $got['username']);
+        $this->assertSame($channel['raw'], $got['raw']);
+
+        $this->assertNull($this->store->getChannel(999999));
+    }
 }
