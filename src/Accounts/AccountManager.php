@@ -199,6 +199,22 @@ class AccountManager
     }
 
     /**
+     * Import a pre-authenticated or migrated account directly into the store.
+     */
+    public function importAccount(
+        int $userId,
+        int $apiId,
+        string $apiHash,
+        ?string $authState,
+        ?string $sessionBlob = null
+    ): void {
+        $this->store->upsertAccount($userId, $apiId, $apiHash, $authState, $sessionBlob);
+        if ($userId > 0) {
+            $this->store->linkAccountEntity($userId, $userId, 'self');
+        }
+    }
+
+    /**
      * Get a single account row (including session_blob).
      *
      * @return array<string, mixed>|null

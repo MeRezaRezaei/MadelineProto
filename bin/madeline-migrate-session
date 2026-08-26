@@ -1,0 +1,88 @@
+#!/usr/bin/env php
+<?php declare(strict_types=1);
+
+/**
+ * This file is part of MadelineProto.
+ * MadelineProto is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+ * MadelineProto is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ * See the GNU Affero General Public License for more details.
+ * You should have received a copy of the GNU General Public License along with MadelineProto.
+ * If not, see <http://www.gnu.org/licenses/>.
+ *
+ * @author    Daniil Gentili <daniil@daniil.it>
+ * @copyright 2016-2025 Daniil Gentili <daniil@daniil.it>
+ * @license   https://opensource.org/licenses/AGPL-3.0 AGPLv3
+ * @link https://docs.madelineproto.xyz MadelineProto documentation
+ */
+
+use danog\MadelineProto\Migration\SessionMigrator;
+
+require __DIR__ . '/../vendor/autoload.php';
+
+// ── Argument Parsing ────────────────────────────────────────────────────────
+$args = array_slice($argv, 1);
+$session = null;
+$dsn = null;
+$cleanup = false;
+$archive = null;
+
+foreach ($args as $arg) {
+    if (str_starts_with($arg, '--session=')) {
+        $session = substr($arg, 10);
+    } elseif (str_starts_with($arg, '--dsn=')) {
+        $dsn = substr($arg, 6);
+    } elseif (str_starts_with($arg, '--archive=')) {
+        $archive = substr($arg, 10);
+    } elseif ($arg === '--cleanup' || $arg === '--remove-files') {
+        $cleanup = true;
+    } elseif ($arg === '--help' || $arg === '-h') {
+        echo <<<HELP
+Usage: madeline-migrate-session [options]
+
+Options:
+  --session=<path|name>  Session path or name (default: sessions/main_account)
+  --dsn=<dsn>            Target database DSN (PostgreSQL or SQLite, or env MADELINE_DSN / MADLINE_DSN)
+  --cleanup              Delete old session files after successful migration
+  --remove-files         Alias for --cleanup
+  --archive=<dir>        Archive old session files to specified directory
+  -h, --help             Show this help message
+
+HELP;
+        exit(0);
+    } elseif (!str_starts_with($arg, '-')) {
+        $session ??= $arg;
+    }
+}
+
+// Fallbacks
+$session ??= 'sessions/main_account';
+$dsn ??= $_ENV['MADELINE_DSN']
+    ?? $_ENV['MADLINE_DSN']
+    ?? $_ENV['DATABASE_URL']
+    ?? getenv('MADELINE_DSN')
+    ?? getenv('MADLINE_DSN')
+    ?? getenv('DATABASE_URL')
+    ?: null;
+
+if ($dsn === null || $dsn === '') {
+    fwrite(STDERR, "Error: --dsn or MADELINE_DSN / MADLINE_DSN / DATABASE_URL environment variable is required.\n");
+    exit(1);
+}
+
+try {
+    $migrator = new SessionMigrator($dsn);
+    $result = $migrator->migrate($session, cleanup: $cleanup, archiveDir: $archive);
+
+    echo "Session '{$session}' successfully migrated to database.\n";
+    echo "  User ID:    {$result['user_id']}\n";
+    echo "  API ID:     {$result['api_id']}\n";
+    echo "  Auth State: {$result['auth_state']}\n";
+    if ($result['cleaned_up']) {
+        echo "  Old session files removed successfully.\n";
+    }
+
+    exit(0);
+} catch (\Throwable $e) {
+    fwrite(STDERR, "Migration failed: " . $e->getMessage() . "\n");
+    exit(1);
+}
