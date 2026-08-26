@@ -1,0 +1,23 @@
+{
+  "sets": {
+    "vault": {
+      "paths": [
+        "/root/autounseal-bundle-20260709.gpg",
+        "/etc/madeline"
+      ],
+      "exclude": [
+        "*.tmp"
+      ],
+      "pre_command": null,
+      "chunk_size": null
+    },
+    "db": {
+      "paths": [
+        "/var/backups/madeline"
+      ],
+      "exclude": [],
+      "pre_command": "pg_dump madeline > /var/backups/madeline/dump.sql",
+      "chunk_size": null
+    }
+  }
+}

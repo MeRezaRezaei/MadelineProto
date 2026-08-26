@@ -1,0 +1,14 @@
+[Unit]
+Description=MadelineProto Telegram Backup (oneshot)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+# Adjust path to your MadelineProto checkout:
+WorkingDirectory=/opt/MadelineProto
+EnvironmentFile=/etc/madeline/backup.env
+ExecStart=/usr/bin/php /opt/MadelineProto/bin/madeline-daemon backup:run --dsn=${MADLINE_DSN} --config=${MADLINE_BACKUP_CONFIG}
+# Large uploads: no timeout
+TimeoutStartSec=infinity
+PrivateTmp=true

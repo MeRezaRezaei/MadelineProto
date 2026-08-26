@@ -1,0 +1,13 @@
+[Unit]
+Description=MadelineProto Telegram Backup Verification (oneshot)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+# Adjust path to your MadelineProto checkout:
+WorkingDirectory=/opt/MadelineProto
+EnvironmentFile=/etc/madeline/backup.env
+ExecStart=/usr/bin/php /opt/MadelineProto/bin/madeline-daemon backup:verify --dsn=${MADLINE_DSN} --config=${MADLINE_BACKUP_CONFIG} --count=10
+TimeoutStartSec=infinity
+PrivateTmp=true
