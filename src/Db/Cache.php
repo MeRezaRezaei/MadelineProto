@@ -135,4 +135,8 @@ final class Cache
         return 'file:' . $volumeId . ':' . $localId;
     }
 
+    public static function dialogsKey(int $accountId): string
+    {
+        return 'dialogs:' . $accountId;
+    }
 }

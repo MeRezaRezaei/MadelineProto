@@ -556,7 +556,7 @@ final class ApiClient
         return null;
     }
 
-    private function findStoreAccount(string $sessionName): ?array
+    public function findStoreAccount(string $sessionName): ?array
     {
         if ($this->store === null) {
             return null;

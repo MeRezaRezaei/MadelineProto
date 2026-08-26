@@ -255,6 +255,42 @@ class RelationalStore
     }
 
     // ---------------------------------------------------------------------
+    // dialogs
+    // ---------------------------------------------------------------------
+
+    public function upsertDialog(int $accountId, int $peerId, ?int $topMessage = null, int $unreadCount = 0, ?int $pts = null): void
+    {
+        $this->upsert('dialogs', [
+            'account_id' => $accountId,
+            'peer_id' => $peerId,
+            'top_message' => $topMessage,
+            'unread_count' => $unreadCount,
+            'pts' => $pts,
+        ], ['account_id', 'peer_id']);
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    public function getDialogs(int $accountId): array
+    {
+        return $this->driver->query(
+            'SELECT * FROM dialogs WHERE account_id = ? ORDER BY top_message DESC',
+            [$accountId]
+        );
+    }
+
+    public function getDialog(int $accountId, int $peerId): ?array
+    {
+        $rows = $this->driver->query(
+            'SELECT * FROM dialogs WHERE account_id = ? AND peer_id = ?',
+            [$accountId, $peerId]
+        );
+
+        return isset($rows[0]) ? $rows[0] : null;
+    }
+
+    // ---------------------------------------------------------------------
     // files
     // ---------------------------------------------------------------------
 

@@ -547,8 +547,23 @@ final class ToolCatalog
 
     private function listDialogs(array $args): mixed
     {
+        $session = $args['session_name'] ?? null;
         $limit = \min((int) ($args['limit'] ?? 20), 200);
-        return $this->twrap(fn () => $this->api($args['session_name'] ?? null)->getDialogIds(0, $limit));
+        if ($this->client->isRelational()) {
+            $store = $this->client->getRelationalStore();
+            $account = $this->client->findStoreAccount($session ?? $this->client->defaultSession());
+            if ($account !== null && (int) $account['id'] > 0) {
+                $dialogRows = $store->getDialogs((int) $account['id']);
+                if (!empty($dialogRows)) {
+                    $dialogIds = [];
+                    foreach (array_slice($dialogRows, 0, $limit) as $d) {
+                        $dialogIds[] = (int) $d['peer_id'];
+                    }
+                    return $dialogIds;
+                }
+            }
+        }
+        return $this->twrap(fn () => $this->api($session)->getDialogIds(0, $limit));
     }
 
     private function sendMessage(array $args): mixed
@@ -820,26 +835,87 @@ final class ToolCatalog
                 return $this->conversationsEnvelope($filterLabel, $sort, $includeMedia, $includeBots, $page, $token);
             }
 
-            $api = $this->api($session);
-            $raw = $api->messages->getDialogs([
-                'limit' => 200,
-                'offset_date' => 0,
-                'offset_id' => 0,
-                'offset_peer' => ['_' => 'inputPeerEmpty'],
-            ]);
-
-            $dialogs = $raw['dialogs'] ?? [];
+            $dialogs = [];
             $messages = [];
-            foreach ($raw['messages'] ?? [] as $m) {
-                $messages[$m['id']] = $m;
-            }
             $users = [];
-            foreach ($raw['users'] ?? [] as $u) {
-                $users[$u['id']] = $u;
-            }
             $chats = [];
-            foreach ($raw['chats'] ?? [] as $c) {
-                $chats[$c['id']] = $c;
+
+            $store = $this->client->getRelationalStore();
+            if ($store !== null) {
+                $account = $this->client->findStoreAccount($session ?? $this->client->defaultSession());
+                $accountId = $account ? (int) $account['id'] : (is_numeric($session) ? (int) $session : 0);
+
+                if ($accountId > 0) {
+                    $dbDialogs = $store->getDialogs($accountId);
+                    if (empty($dbDialogs)) {
+                        $entities = $store->getAccountEntities($accountId);
+                        foreach ($entities as $ent) {
+                            $eid = (int) $ent['entity_id'];
+                            if ($eid !== $accountId) {
+                                $dbDialogs[] = ['account_id' => $accountId, 'peer_id' => $eid, 'top_message' => 0];
+                            }
+                        }
+                    }
+
+                    if (!empty($dbDialogs)) {
+                        foreach ($dbDialogs as $d) {
+                            $pid = (int) $d['peer_id'];
+                            $topMsgId = isset($d['top_message']) ? (int) $d['top_message'] : 0;
+                            $dialogs[] = ['peer' => $pid, 'top_message' => $topMsgId];
+
+                            $u = $store->getUser($pid);
+                            if ($u !== null) {
+                                $rawUser = !empty($u['raw']) ? (is_string($u['raw']) ? json_decode($u['raw'], true) : $u['raw']) : null;
+                                $users[$pid] = is_array($rawUser) ? $rawUser : $u;
+                            }
+                            $c = $store->getChat($pid);
+                            if ($c !== null) {
+                                $rawChat = !empty($c['raw']) ? (is_string($c['raw']) ? json_decode($c['raw'], true) : $c['raw']) : null;
+                                $chats[$pid] = is_array($rawChat) ? $rawChat : $c;
+                            }
+                            $ch = $store->getChannel($pid);
+                            if ($ch !== null) {
+                                $rawCh = !empty($ch['raw']) ? (is_string($ch['raw']) ? json_decode($ch['raw'], true) : $ch['raw']) : null;
+                                $chats[$pid] = is_array($rawCh) ? $rawCh : $ch;
+                            }
+
+                            if ($topMsgId > 0) {
+                                $m = $store->getMessage($pid, $topMsgId);
+                                if ($m !== null) {
+                                    $rawMsg = !empty($m['raw']) ? (is_string($m['raw']) ? json_decode($m['raw'], true) : $m['raw']) : null;
+                                    $messages[$topMsgId] = is_array($rawMsg) ? $rawMsg : $m;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (empty($dialogs)) {
+                try {
+                    $api = $this->api($session);
+                    $raw = $api->messages->getDialogs([
+                        'limit' => 200,
+                        'offset_date' => 0,
+                        'offset_id' => 0,
+                        'offset_peer' => ['_' => 'inputPeerEmpty'],
+                    ]);
+
+                    $dialogs = $raw['dialogs'] ?? [];
+                    foreach ($raw['messages'] ?? [] as $m) {
+                        $messages[$m['id']] = $m;
+                    }
+                    foreach ($raw['users'] ?? [] as $u) {
+                        $users[$u['id']] = $u;
+                    }
+                    foreach ($raw['chats'] ?? [] as $c) {
+                        $chats[$c['id']] = $c;
+                    }
+                } catch (\Throwable $e) {
+                    if ($store === null) {
+                        throw $e;
+                    }
+                }
             }
 
             $allowed = null;

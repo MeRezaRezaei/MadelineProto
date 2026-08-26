@@ -197,4 +197,22 @@ class RelationalStoreTest extends TestCase
 
         $this->assertNull($this->store->getChannel(999999));
     }
+
+    public function testDialogRoundTrip(): void
+    {
+        $this->store->upsertDialog(501558149, 123456, 10, 0, 100);
+        $this->store->upsertDialog(501558149, 654321, 20, 2, 200);
+
+        $dialogs = $this->store->getDialogs(501558149);
+        $this->assertCount(2, $dialogs);
+        $this->assertSame(654321, (int) $dialogs[0]['peer_id']);
+        $this->assertSame(123456, (int) $dialogs[1]['peer_id']);
+
+        $single = $this->store->getDialog(501558149, 123456);
+        $this->assertNotNull($single);
+        $this->assertSame(10, (int) $single['top_message']);
+
+        $missing = $this->store->getDialog(501558149, 999999);
+        $this->assertNull($missing);
+    }
 }

@@ -244,7 +244,8 @@ class RelationalE2ETest extends AsyncTestCase
         });
         $bus->start();
 
-        $data = ['peer_id' => 2000, 'message_id' => 100, 'message' => 'dedup test'];
+        $rand = random_int(10000, 99999);
+        $data = ['peer_id' => $rand, 'message_id' => 100, 'message' => 'dedup test'];
         $bus->emit(1, 'updateNewMessage', $data);
         $bus->emit(2, 'updateNewMessage', $data);
         $bus->emit(3, 'updateNewMessage', $data);
@@ -289,8 +290,9 @@ class RelationalE2ETest extends AsyncTestCase
 
         $bus->start();
 
+        $rand = random_int(10000, 99999);
         // Emit with unique dedup key — both handlers must fire.
-        $bus->emit(1, 'updateNewMessage', ['peer_id' => 3000, 'message_id' => 200, 'message' => 'hot reload test']);
+        $bus->emit(1, 'updateNewMessage', ['peer_id' => $rand, 'message_id' => 200, 'message' => 'hot reload test']);
 
         $deferred->getFuture()->await();
 
