@@ -16,6 +16,12 @@
  */
 
 use danog\MadelineProto\Accounts\AccountManager;
+use danog\MadelineProto\Backup\BackupConfig;
+use danog\MadelineProto\Backup\BackupRunner;
+use danog\MadelineProto\Backup\BackupStore;
+use danog\MadelineProto\Backup\Restorer;
+use danog\MadelineProto\Backup\TelegramVault;
+use danog\MadelineProto\Backup\Verifier;
 use danog\MadelineProto\Daemon\Daemon;
 use danog\MadelineProto\Db\Cache;
 use danog\MadelineProto\Db\Migrations;
@@ -25,22 +31,53 @@ use danog\MadelineProto\Sync\NullAccountDataProvider;
 use danog\MadelineProto\Sync\SyncLoop;
 use Revolt\EventLoop;
 
-require __DIR__ . '/../vendor/autoload.php';
+$autoload = file_exists(__DIR__ . '/../autoload-worktree.php')
+    ? __DIR__ . '/../autoload-worktree.php'
+    : __DIR__ . '/../vendor/autoload.php';
+require $autoload;
 
 $pidFile = '/tmp/madeline-daemon.pid';
+$storageSessionPath = __DIR__ . '/../sessions/storage/storage.madeline';
 
 // ── argument parsing ────────────────────────────────────────────────────────
 $args = array_slice($argv, 1);
 $subcommand = 'start';
 $dsn = null;
 $redis = null;
+$configPath = null;
+$targetSet = null;
+$passphraseFile = null;
+$passphrase = null;
+$toDir = null;
+$snapshotId = null;
+$fromManifest = null;
+$count = null;
+$phone = null;
 
 foreach ($args as $arg) {
     if (str_starts_with($arg, '--dsn=')) {
         $dsn = substr($arg, 6);
     } elseif (str_starts_with($arg, '--redis=')) {
         $redis = substr($arg, 8);
-    } elseif ($arg === 'start' || $arg === 'stop' || $arg === 'status') {
+    } elseif (str_starts_with($arg, '--config=')) {
+        $configPath = substr($arg, 9);
+    } elseif (str_starts_with($arg, '--set=')) {
+        $targetSet = substr($arg, 6);
+    } elseif (str_starts_with($arg, '--passphrase-file=')) {
+        $passphraseFile = substr($arg, 18);
+    } elseif (str_starts_with($arg, '--passphrase=')) {
+        $passphrase = substr($arg, 13);
+    } elseif (str_starts_with($arg, '--to=')) {
+        $toDir = substr($arg, 5);
+    } elseif (str_starts_with($arg, '--snapshot=')) {
+        $snapshotId = substr($arg, 11);
+    } elseif (str_starts_with($arg, '--from-manifest=')) {
+        $fromManifest = substr($arg, 16);
+    } elseif (str_starts_with($arg, '--count=')) {
+        $count = (int) substr($arg, 8);
+    } elseif (str_starts_with($arg, '--phone=')) {
+        $phone = substr($arg, 8);
+    } elseif ($arg === 'start' || $arg === 'stop' || $arg === 'status' || str_starts_with($arg, 'backup:')) {
         $subcommand = $arg;
     } elseif (!str_starts_with($arg, '-')) {
         $subcommand = $arg;
@@ -50,6 +87,11 @@ foreach ($args as $arg) {
 // Fallback to environment variables.
 $dsn ??= $_ENV['MADLINE_DSN'] ?? getenv('MADLINE_DSN') ?: null;
 $redis ??= $_ENV['MADLINE_REDIS'] ?? getenv('MADLINE_REDIS') ?: null;
+$configPath ??= $_ENV['MADLINE_BACKUP_CONFIG'] ?? getenv('MADLINE_BACKUP_CONFIG') ?: null;
+$passphrase ??= $_ENV['MADLINE_BACKUP_PASSPHRASE'] ?? getenv('MADLINE_BACKUP_PASSPHRASE') ?: null;
+if ($passphraseFile !== null && file_exists($passphraseFile)) {
+    $passphrase = trim((string) file_get_contents($passphraseFile));
+}
 
 // ── status ──────────────────────────────────────────────────────────────────
 if ($subcommand === 'status') {
@@ -94,6 +136,187 @@ if ($subcommand === 'stop') {
     echo "Warning: PID {$pid} did not exit within 5 s; unlinking PID file anyway\n";
     @unlink($pidFile);
     exit(1);
+}
+
+// ── backup:login ────────────────────────────────────────────────────────────
+if ($subcommand === 'backup:login') {
+    if ($phone === null || $phone === '') {
+        fwrite(STDERR, "Error: --phone is required for backup:login\n");
+        exit(1);
+    }
+    $sessDir = dirname($storageSessionPath);
+    if (!is_dir($sessDir)) {
+        mkdir($sessDir, 0770, true);
+    }
+    TelegramVault::login($storageSessionPath, $phone);
+    echo "Logged in successfully to backup storage session.\n";
+    exit(0);
+}
+
+// ── backup:status ───────────────────────────────────────────────────────────
+if ($subcommand === 'backup:status') {
+    if ($dsn === null || $dsn === '') {
+        fwrite(STDERR, "Error: --dsn or MADLINE_DSN is required.\n");
+        exit(1);
+    }
+    if ($configPath === null || !file_exists($configPath)) {
+        fwrite(STDERR, "Error: --config or MADLINE_BACKUP_CONFIG is required and must exist.\n");
+        exit(1);
+    }
+
+    $sessExists = file_exists($storageSessionPath);
+    echo "Storage session file: " . ($sessExists ? "present ({$storageSessionPath})" : "absent") . "\n";
+
+    $config = BackupConfig::loadFile($configPath);
+    $driver = new PdoDriver($dsn);
+    (new Migrations($driver))->migrate();
+    $store = new BackupStore($driver);
+
+    echo "Configured backup sets:\n";
+    foreach ($config->sets() as $setName => $setCfg) {
+        $ch = $store->getChannel($setName);
+        $snaps = $store->listSnapshots($setName);
+        $chStr = $ch !== null ? (string) $ch : "unmapped";
+        $snapCount = count($snaps);
+        echo "  - {$setName}: channel={$chStr}, {$snapCount} snapshot(s)\n";
+    }
+    exit(0);
+}
+
+// ── backup:list ─────────────────────────────────────────────────────────────
+if ($subcommand === 'backup:list') {
+    if ($dsn === null || $dsn === '') {
+        fwrite(STDERR, "Error: --dsn or MADLINE_DSN is required.\n");
+        exit(1);
+    }
+    if ($configPath === null || !file_exists($configPath)) {
+        fwrite(STDERR, "Error: --config or MADLINE_BACKUP_CONFIG is required and must exist.\n");
+        exit(1);
+    }
+
+    $config = BackupConfig::loadFile($configPath);
+    $driver = new PdoDriver($dsn);
+    (new Migrations($driver))->migrate();
+    $store = new BackupStore($driver);
+
+    $sets = $targetSet !== null ? [$targetSet => $config->set($targetSet)] : $config->sets();
+    foreach ($sets as $setName => $setCfg) {
+        $snaps = $store->listSnapshots($setName);
+        $count = count($snaps);
+        echo "{$setName}: {$count} snapshot(s)\n";
+        foreach ($snaps as $s) {
+            echo "  - {$s['snapshot_id']} (manifest msg: {$s['manifest_msg_id']}, files: {$s['file_count']}, bytes: {$s['total_bytes']}, at: {$s['created_at']})\n";
+        }
+    }
+    exit(0);
+}
+
+// ── backup:run ──────────────────────────────────────────────────────────────
+if ($subcommand === 'backup:run') {
+    if ($dsn === null || $dsn === '') {
+        fwrite(STDERR, "Error: --dsn or MADLINE_DSN is required.\n");
+        exit(1);
+    }
+    if ($configPath === null || !file_exists($configPath)) {
+        fwrite(STDERR, "Error: --config or MADLINE_BACKUP_CONFIG is required and must exist.\n");
+        exit(1);
+    }
+    if ($passphrase === null || $passphrase === '') {
+        fwrite(STDERR, "Error: --passphrase-file or MADLINE_BACKUP_PASSPHRASE is required.\n");
+        exit(1);
+    }
+
+    $config = BackupConfig::loadFile($configPath);
+    $driver = new PdoDriver($dsn);
+    (new Migrations($driver))->migrate();
+    $store = new BackupStore($driver);
+
+    $vault = TelegramVault::boot($storageSessionPath);
+    $defaultChunkSize = $vault->isPremium() ? 3992977408 : 1992294400;
+    $runner = new BackupRunner($vault, $store);
+
+    $sets = $targetSet !== null ? [$targetSet => $config->set($targetSet)] : $config->sets();
+    foreach ($sets as $setName => $setCfg) {
+        echo "Running backup for set: {$setName}…\n";
+        $snapId = $runner->run($setName, $setCfg, $passphrase, $defaultChunkSize, static function (string $msg): void {
+            echo "  {$msg}\n";
+        });
+        echo "Backup complete for set {$setName}: snapshot {$snapId}\n";
+    }
+    exit(0);
+}
+
+// ── backup:restore ──────────────────────────────────────────────────────────
+if ($subcommand === 'backup:restore') {
+    if ($toDir === null || $toDir === '') {
+        fwrite(STDERR, "Error: --to destination directory is required for backup:restore.\n");
+        exit(1);
+    }
+    if ($passphrase === null || $passphrase === '') {
+        fwrite(STDERR, "Error: --passphrase-file or MADLINE_BACKUP_PASSPHRASE is required.\n");
+        exit(1);
+    }
+
+    $vault = TelegramVault::boot($storageSessionPath);
+
+    if ($fromManifest !== null && file_exists($fromManifest)) {
+        $json = file_get_contents($fromManifest);
+        $freshDriver = new PdoDriver($dsn ?? 'sqlite::memory:');
+        $r = new Restorer($vault, new BackupStore($freshDriver));
+        $count = $r->restoreFromManifestJson($json, $toDir, $passphrase, static function (string $msg): void {
+            echo "  {$msg}\n";
+        });
+        echo "Restored {$count} file(s) from manifest to {$toDir}\n";
+        exit(0);
+    }
+
+    if ($dsn === null || $dsn === '') {
+        fwrite(STDERR, "Error: --dsn or MADLINE_DSN is required when restoring without --from-manifest.\n");
+        exit(1);
+    }
+    if ($targetSet === null || $targetSet === '') {
+        fwrite(STDERR, "Error: --set is required for backup:restore.\n");
+        exit(1);
+    }
+
+    $driver = new PdoDriver($dsn);
+    (new Migrations($driver))->migrate();
+    $store = new BackupStore($driver);
+    $r = new Restorer($vault, $store);
+
+    $count = $r->restore($targetSet, $toDir, $passphrase, $snapshotId, static function (string $msg): void {
+        echo "  {$msg}\n";
+    });
+    echo "Restored {$count} file(s) for set {$targetSet} to {$toDir}\n";
+    exit(0);
+}
+
+// ── backup:verify ───────────────────────────────────────────────────────────
+if ($subcommand === 'backup:verify') {
+    if ($dsn === null || $dsn === '') {
+        fwrite(STDERR, "Error: --dsn or MADLINE_DSN is required.\n");
+        exit(1);
+    }
+
+    $driver = new PdoDriver($dsn);
+    (new Migrations($driver))->migrate();
+    $store = new BackupStore($driver);
+    $vault = TelegramVault::boot($storageSessionPath);
+    $verifier = new Verifier($vault, $store);
+
+    $verifyCount = $count ?? 10;
+    $result = $verifier->verifyRandom($verifyCount);
+
+    $failedCount = count($result['failed']);
+    echo "Checked {$result['checked']} chunk(s), {$failedCount} failure(s)\n";
+    if ($failedCount > 0) {
+        fwrite(STDERR, "Corruption detected in chunks:\n");
+        foreach ($result['failed'] as $h) {
+            fwrite(STDERR, "  - {$h}\n");
+        }
+        exit(1);
+    }
+    exit(0);
 }
 
 // ── start ───────────────────────────────────────────────────────────────────
