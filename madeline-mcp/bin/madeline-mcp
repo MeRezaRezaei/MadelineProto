@@ -17,9 +17,22 @@ spl_autoload_register(static function (string $class): void {
     }
 });
 
-$session = (string) getenv('SESSION') ?: 'madeline-mcp';
+$args = array_slice($argv, 1);
+$session = null;
+$dsn = null;
 
-$client = new ApiClient($session);
+foreach ($args as $arg) {
+    if (str_starts_with($arg, '--session=')) {
+        $session = substr($arg, 10);
+    } elseif (str_starts_with($arg, '--dsn=')) {
+        $dsn = substr($arg, 6);
+    }
+}
+
+$session ??= (string) getenv('SESSION') ?: 'madeline-mcp';
+$dsn ??= (string) (getenv('MADELINE_DSN') ?: (getenv('MADLINE_DSN') ?: (getenv('DATABASE_URL') ?: ''))) ?: null;
+
+$client = new ApiClient($session, $dsn);
 $server = new McpServer($client, new ToolCatalog($client));
 
 $server->run();

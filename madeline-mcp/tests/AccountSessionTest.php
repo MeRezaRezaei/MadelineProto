@@ -24,7 +24,8 @@ final class AccountSessionTest extends TestCase
     protected function setUp(): void
     {
         $sessionDir = getcwd() . '/sessions/' . self::SESSION;
-        if (!\is_dir($sessionDir)) {
+        $dsn = getenv('MADELINE_DSN') ?: getenv('DATABASE_URL') ?: getenv('MADLINE_DSN');
+        if (!\is_dir($sessionDir) && empty($dsn)) {
             self::markTestSkipped('The "' . self::SESSION . '" session is not present; run the login flow first.');
         }
 

@@ -526,33 +526,23 @@ final class ToolCatalog
 
     private function getLoginState(array $args): mixed
     {
-        return $this->twrap(function () use ($args): array {
-            $api = $this->api($args['session_name'] ?? null);
-            $auth = $api->getAuthorization();
-            $me = $api->getSelf();
-            $loggedIn = \is_array($me) && $auth === API::LOGGED_IN;
-            return [
-                'state' => match ($auth) {
-                    API::LOGGED_IN => 'LOGGED_IN',
-                    API::WAITING_CODE => 'WAITING_CODE',
-                    API::WAITING_PASSWORD => 'WAITING_PASSWORD',
-                    API::WAITING_SIGNUP => 'WAITING_SIGNUP',
-                    API::LOGGED_OUT => 'LOGGED_OUT',
-                    default => 'NOT_LOGGED_IN',
-                },
-                'logged_in' => $loggedIn,
-            ];
-        });
+        return $this->twrap(fn (): array => $this->client->getLoginState($args['session_name'] ?? null));
     }
 
     private function getMe(array $args): mixed
     {
-        return $this->twrap(fn () => $this->api($args['session_name'] ?? null)->getSelf());
+        return $this->twrap(fn () => $this->client->getMe($args['session_name'] ?? null));
     }
 
     private function resolvePeer(array $args): mixed
     {
-        return $this->twrap(fn () => $this->api($args['session_name'] ?? null)->getInfo($args['peer']));
+        return $this->twrap(function () use ($args) {
+            $fromStore = $this->client->resolvePeer($args['peer']);
+            if ($fromStore !== null) {
+                return $fromStore;
+            }
+            return $this->api($args['session_name'] ?? null)->getInfo($args['peer']);
+        });
     }
 
     private function listDialogs(array $args): mixed

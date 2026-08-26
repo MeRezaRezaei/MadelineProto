@@ -20,7 +20,7 @@ final class MockDataStructureTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->dir = getcwd() . '/madeline-mcp/tests/fixtures';
+        $this->dir = __DIR__ . '/fixtures';
     }
 
     private function load(string $file): mixed
