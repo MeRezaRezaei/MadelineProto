@@ -21,8 +21,14 @@ use danog\MadelineProto\Db\Cache;
 use danog\MadelineProto\Db\Migrations;
 use danog\MadelineProto\Db\PdoDriver;
 use danog\MadelineProto\Db\RelationalStore;
+use danog\MadelineProto\Events\EventBus;
+use danog\MadelineProto\Sync\BackfillWorker;
+use danog\MadelineProto\Sync\FetchQueue;
 use danog\MadelineProto\Sync\NullAccountDataProvider;
 use danog\MadelineProto\Sync\SyncLoop;
+use danog\MadelineProto\Sync\SyncTargets;
+use danog\MadelineProto\Sync\UpdateHandler;
+use danog\Loop\PeriodicLoop;
 use Revolt\EventLoop;
 
 require __DIR__ . '/../vendor/autoload.php';
@@ -111,6 +117,23 @@ $driver = new PdoDriver($dsn);
 $store = new RelationalStore($driver);
 $accounts = new AccountManager($store);
 $cache = new Cache($redis);
+
+// Live hot path: TG updates → UpdateHandler → (store + cache + Redis bus).
+$bus = new EventBus($redis, $redis, [], $redis);
+$handler = new UpdateHandler($store, $cache, $bus, new SyncTargets($driver));
+// Real TG updates arrive via MadelineProto's EventHandler calling $handler->process(...).
+
+// Gradual backfill: queue-driven, quota-sliced, drained by the loop below.
+$backfill = new BackfillWorker(
+    $store,
+    new FetchQueue($driver),
+    // TODO: replace with BackfillWorker::getHistoryFetcher($api) once API session wiring lands
+    static fn (): array => [],
+    100,
+);
+
+// SyncLoop keeps periodic cache invalidation; the live update path above
+// supersedes the null provider for real traffic (kept for SyncLoop's shape).
 $sync = new SyncLoop($accounts, $store, $cache, new NullAccountDataProvider());
 
 $daemon = new Daemon($driver, $cache, $accounts, $sync);
@@ -122,6 +145,20 @@ file_put_contents($pidFile, (string) getmypid());
 // EventLoop::run() drives the sync loop and dispatches signals. It returns
 // once the daemon stops (all referenced watchers cancelled in stop()).
 $daemon->boot();
+
+// Second periodic loop: drain one quota-sliced backfill pass every 60 s.
+// Returning false keeps the loop running (true would stop it).
+$backfillLoop = new PeriodicLoop(
+    static function () use ($backfill): bool {
+        $backfill->run(100, 10);
+
+        return false;
+    },
+    'backfill-loop',
+    60.0,
+);
+$backfillLoop->start();
+
 EventLoop::run();
 
 // Clean up the PID file after a clean shutdown.
