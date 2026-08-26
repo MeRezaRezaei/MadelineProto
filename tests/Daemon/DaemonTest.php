@@ -28,6 +28,7 @@ use danog\MadelineProto\Db\RelationalStore;
 use danog\MadelineProto\Sync\AccountDataProvider;
 use danog\MadelineProto\Sync\SyncLoop;
 use PHPUnit\Framework\TestCase;
+use Revolt\EventLoop;
 
 /**
  * Daemon acceptance tests (SQLite + real Redis 16379).
@@ -42,6 +43,7 @@ class DaemonTest extends TestCase
     private Cache $cache;
     private RedisClient $raw;
     private string $prefix;
+    private ?Daemon $daemon = null;
 
     protected function setUp(): void
     {
@@ -92,7 +94,7 @@ class DaemonTest extends TestCase
             30
         );
 
-        return new Daemon($this->driver, $this->cache, $this->accounts, $sync);
+        return $this->daemon = new Daemon($this->driver, $this->cache, $this->accounts, $sync);
     }
 
     public function testBootSetsRunningTrue(): void
@@ -165,21 +167,25 @@ class DaemonTest extends TestCase
         $daemon->boot();
         $this->assertTrue($daemon->isRunning());
 
-        // Send SIGTERM to the current process — the signal handler installed
-        // by boot() will call stop().
-        posix_kill(getmypid(), SIGTERM);
-        // Let the signal be dispatched (pcntl_signal_dispatch is called by
-        // the PHPUnit runner or we trigger it manually).
-        if (function_exists('pcntl_signal_dispatch')) {
-            pcntl_signal_dispatch();
-        }
+        // Send SIGTERM to self while the loop runs; Revolt dispatches it and the
+        // boot() handler calls stop(). The watchdog guarantees run() returns even
+        // if the signal is missed.
+        EventLoop::defer(static function (): void {
+            posix_kill(getmypid(), SIGTERM);
+        });
+        $watchdog = EventLoop::delay(2.0, static fn () => $daemon->stop());
+        EventLoop::reference($watchdog);
+        EventLoop::run();
 
-        // After signal, daemon should be stopped (the handler called stop()).
         $this->assertFalse($daemon->isRunning());
     }
 
     protected function tearDown(): void
     {
+        if (isset($this->daemon) && $this->daemon->isRunning()) {
+            $this->daemon->stop();
+        }
+
         if (isset($this->driver)) {
             try {
                 $this->driver->close();
