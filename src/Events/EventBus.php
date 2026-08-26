@@ -326,7 +326,7 @@ final class EventBus
 
         $listeners = &$this->listeners;
 
-        EventLoop::queue(function () use ($listeners, $subscription): void {
+        EventLoop::queue(function () use (&$listeners, $subscription): void {
             try {
                 foreach ($subscription as $payload) {
                     if (!$this->running) {

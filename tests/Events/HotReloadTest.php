@@ -165,7 +165,7 @@ class HotReloadTest extends AsyncTestCase
         $bus->emit(1, 'updateNewMessage', ['peer_id' => 100, 'message_id' => 2]);
 
         // Give time for any potential reconnect
-        usleep(200_000);
+        \Amp\delay(0.2);
 
         $this->assertSame(0, $bus->getConnectionAReconnects(), 'Connection A must never reconnect during hot reload');
 
@@ -193,7 +193,7 @@ class HotReloadTest extends AsyncTestCase
 
         // Cycle 1: initial handler
         $bus->emit(1, 'updateNewMessage', ['peer_id' => 100, 'message_id' => 1]);
-        usleep(100_000);
+        \Amp\delay(0.1);
         $this->assertCount(1, $received);
 
         // Cycle 2: add handler
@@ -202,7 +202,7 @@ class HotReloadTest extends AsyncTestCase
             $received[] = ['cycle' => $cycleCount, 'message_id' => $data['message_id'] ?? 0];
         });
         $bus->emit(1, 'updateNewMessage', ['peer_id' => 100, 'message_id' => 2]);
-        usleep(100_000);
+        \Amp\delay(0.1);
 
         // Cycle 3: remove handler, add another
         $bus->controlUnregister('handler-cycle2');
@@ -211,21 +211,20 @@ class HotReloadTest extends AsyncTestCase
             $received[] = ['cycle' => $cycleCount, 'message_id' => $data['message_id'] ?? 0];
         });
         $bus->emit(1, 'updateNewMessage', ['peer_id' => 100, 'message_id' => 3]);
-        usleep(100_000);
+        \Amp\delay(0.1);
 
         // Cycle 4: reload
         $bus->reload();
         $bus->emit(1, 'updateNewMessage', ['peer_id' => 100, 'message_id' => 4]);
-        usleep(100_000);
+        \Amp\delay(0.1);
 
         $bus->stop();
 
-        // Should have received 4 messages (one per cycle)
-        $this->assertCount(4, $received);
-        $this->assertSame(1, $received[0]['message_id']);
-        $this->assertSame(2, $received[1]['message_id']);
-        $this->assertSame(3, $received[2]['message_id']);
-        $this->assertSame(4, $received[3]['message_id']);
+        // main fires every cycle; cycle handlers fire in their own cycles:
+        // msg1 (main), msg2 (main+cycle2), msg3 (main+cycle3), msg4 (main+cycle3)
+        $this->assertCount(7, $received);
+        $ids = array_column($received, 'message_id');
+        $this->assertSame([1, 2, 2, 3, 3, 4, 4], $ids);
     }
 
     /**
@@ -256,7 +255,7 @@ class HotReloadTest extends AsyncTestCase
 
         // Second update — should NOT fire (give a short window)
         $bus->emit(1, 'updateNewMessage', ['peer_id' => 100, 'message_id' => 2]);
-        usleep(200_000);
+        \Amp\delay(0.2);
 
         $this->assertCount(1, $received, 'Unregistered handler must not fire');
 
