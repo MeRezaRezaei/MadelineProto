@@ -27,6 +27,11 @@ final class BackupStore
         $this->driver = $driver;
     }
 
+    public function getDriver(): SqlDriver
+    {
+        return $this->driver;
+    }
+
     /**
      * Idempotent upsert over an explicit primary key (copied from RelationalStore).
      *
