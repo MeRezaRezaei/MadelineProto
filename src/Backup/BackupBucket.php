@@ -2,35 +2,36 @@
 namespace danog\MadelineProto\Backup;
 
 /**
- * Value object describing a provisioned backup bucket.
+ * Immutable value object for a backup bucket row.
  */
 final class BackupBucket
 {
     public function __construct(
-        public readonly int $id,
-        public readonly string $name,
-        public readonly int $channelId,
-        public readonly string $channelTitle,
-        public readonly ?string $botToken,
-        public readonly ?string $botUsername,
-        public readonly string $alertPeer,
-        public readonly int $checkInterval,
-        public readonly int $staleAfter,
+        public int $id,
+        public string $name,
+        public int $channelId,
+        public ?string $channelTitle,
+        public ?string $botToken,
+        public ?string $botUsername,
+        public ?string $alertPeer,
+        public int $checkInterval,
+        public int $staleAfter,
     ) {
     }
 
+    /** @param array<string, mixed> $row */
     public static function fromRow(array $row): self
     {
         return new self(
-            id: (int) $row['id'],
-            name: (string) $row['name'],
-            channelId: (int) $row['channel_id'],
-            channelTitle: (string) $row['channel_title'],
-            botToken: $row['bot_token'] !== null ? (string) $row['bot_token'] : null,
-            botUsername: $row['bot_username'] !== null ? (string) $row['bot_username'] : null,
-            alertPeer: (string) $row['alert_peer'],
-            checkInterval: (int) $row['check_interval'],
-            staleAfter: (int) $row['stale_after'],
+            id: (int) ($row['id'] ?? 0),
+            name: (string) ($row['name'] ?? ''),
+            channelId: (int) ($row['channel_id'] ?? 0),
+            channelTitle: $row['channel_title'] ?? null,
+            botToken: $row['bot_token'] ?? null,
+            botUsername: $row['bot_username'] ?? null,
+            alertPeer: $row['alert_peer'] ?? null,
+            checkInterval: (int) ($row['check_interval'] ?? 900),
+            staleAfter: (int) ($row['stale_after'] ?? 3900),
         );
     }
 }
