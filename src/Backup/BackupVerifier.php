@@ -48,30 +48,30 @@ final class BackupVerifier
         }
     }
 
+    /** Lazily build (and return) the internal periodic loop. */
+    public function getLoop(): \danog\Loop\PeriodicLoop
+    {
+        if ($this->loop === null) {
+            $this->loop = new PeriodicLoop(
+                function (PeriodicLoop $l): bool {
+                    $this->tick();
+                    return false;
+                },
+                'backup-verifier',
+                (float) $this->intervalSeconds
+            );
+        }
+        return $this->loop;
+    }
+
     public function start(): void
     {
-        if ($this->loop !== null) {
-            return;
-        }
-        $this->loop = new PeriodicLoop(
-            function (PeriodicLoop $l): bool {
-                $this->tick();
-                return false;
-            },
-            'backup-verifier',
-            (float) $this->intervalSeconds
-        );
-        $this->loop->start();
+        $this->getLoop()->start();
     }
 
     public function stop(): void
     {
         $this->loop?->stop();
         $this->loop = null;
-    }
-
-    public function getLoop(): \danog\Loop\PeriodicLoop
-    {
-        return $this->loop;
     }
 }

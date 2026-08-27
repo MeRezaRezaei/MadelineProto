@@ -17,6 +17,9 @@
 
 use danog\Loop\PeriodicLoop;
 use danog\MadelineProto\Accounts\AccountManager;
+use danog\MadelineProto\Backup\BackupApiFactory;
+use danog\MadelineProto\Backup\BackupVerifier;
+use danog\MadelineProto\Backup\MtProtoGateway;
 use danog\MadelineProto\Daemon\Daemon;
 use danog\MadelineProto\Db\Cache;
 use danog\MadelineProto\Db\Migrations;
@@ -149,7 +152,11 @@ $backfillLoop = new PeriodicLoop(
 
 $sync = new SyncLoop($accounts, $store, $cache, new NullAccountDataProvider());
 
-$daemon = new Daemon($driver, $cache, $accounts, $sync, [$backfillLoop]);
+// ── backup verifier loop ──────────────────────────────────────────────────
+$backupGateway = new MtProtoGateway(BackupApiFactory::mainApi($store, $dsn));
+$backupVerifierLoop = new BackupVerifier($store, $backupGateway, 900);
+
+$daemon = new Daemon($driver, $cache, $accounts, $sync, [$backfillLoop, $backupVerifierLoop->getLoop()]);
 
 // Write PID file.
 file_put_contents($pidFile, (string) getmypid());
