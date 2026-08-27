@@ -42,6 +42,8 @@ class SchemaTest extends TestCase
         'account_entities',
         'sync_targets',
         'fetch_jobs',
+        'backup_buckets',
+        'backup_jobs',
     ];
 
     private function migrateSqlite(): PdoDriver
@@ -162,7 +164,7 @@ class SchemaTest extends TestCase
         (new Migrations($driver))->migrate();
 
         $rows = $driver->query('SELECT name FROM _migrations');
-        $this->assertSame(['0001_schema.sqlite.sql'], array_column($rows, 'name'));
+        $this->assertSame(['0001_schema.sqlite.sql', '0002_backup.sqlite.sql'], array_column($rows, 'name'));
         $this->assertTrue(true);
     }
 
