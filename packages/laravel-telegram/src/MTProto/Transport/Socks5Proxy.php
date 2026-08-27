@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Danog\LaravelTelegram\MTProto\Transport;
+namespace Rezarezaei\LaravelTelegram\MTProto\Transport;
 
 use RuntimeException;
 
@@ -41,10 +41,8 @@ class Socks5Proxy
 
         // 1. Initial greeting (Negotiation)
         if ($username !== null && $password !== null) {
-            // Support No Auth (0x00) and Username/Password (0x02)
             fwrite($socket, "\x05\x02\x00\x02");
         } else {
-            // No Auth (0x00)
             fwrite($socket, "\x05\x01\x00");
         }
 

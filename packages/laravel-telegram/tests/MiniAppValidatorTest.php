@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Danog\LaravelTelegram\Tests;
+namespace Rezarezaei\LaravelTelegram\Tests;
 
-use Danog\LaravelTelegram\Http\Middleware\VerifyTelegramMiniAppInitData;
 use PHPUnit\Framework\TestCase;
+use Rezarezaei\LaravelTelegram\Http\Middleware\VerifyTelegramMiniAppInitData;
 
 class MiniAppValidatorTest extends TestCase
 {

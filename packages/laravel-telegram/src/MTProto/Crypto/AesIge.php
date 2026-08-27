@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Danog\LaravelTelegram\MTProto\Crypto;
+namespace Rezarezaei\LaravelTelegram\MTProto\Crypto;
 
 use RuntimeException;
 

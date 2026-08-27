@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Danog\LaravelTelegram\Http\Middleware;
+namespace Rezarezaei\LaravelTelegram\Http\Middleware;
 
 use Closure;
 use Illuminate\Http\Request;
@@ -20,7 +20,7 @@ class VerifyTelegramMiniAppInitData
             return response()->json(['error' => 'Missing Telegram initData'], 401);
         }
 
-        $botToken = config('telegram.bot_token') ?? env('TELEGRAM_BOT_TOKEN');
+        $botToken = config('telegram.default_bot_token') ?? env('TELEGRAM_BOT_TOKEN');
         if (!$botToken) {
             return response()->json(['error' => 'Bot token not configured on server'], 500);
         }

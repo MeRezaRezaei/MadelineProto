@@ -2,9 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Danog\LaravelTelegram\MTProto\TL;
-
-use RuntimeException;
+namespace Rezarezaei\LaravelTelegram\MTProto\TL;
 
 /**
  * Basic TL (Type Language) binary parser & packer.

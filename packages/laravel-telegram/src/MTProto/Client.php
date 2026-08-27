@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace Danog\LaravelTelegram\MTProto;
+namespace Rezarezaei\LaravelTelegram\MTProto;
 
-use Danog\LaravelTelegram\MTProto\Crypto\AesIge;
-use Danog\LaravelTelegram\MTProto\Crypto\PasswordCalculator;
-use Danog\LaravelTelegram\MTProto\TL\TLSerializer;
-use Danog\LaravelTelegram\MTProto\Transport\Socks5Proxy;
+use Rezarezaei\LaravelTelegram\MTProto\Crypto\AesIge;
+use Rezarezaei\LaravelTelegram\MTProto\Crypto\PasswordCalculator;
+use Rezarezaei\LaravelTelegram\MTProto\TL\TLSerializer;
+use Rezarezaei\LaravelTelegram\MTProto\Transport\Socks5Proxy;
 use RuntimeException;
 
 /**
@@ -75,7 +75,7 @@ class Client
             throw new RuntimeException("Session AuthKey is required to make authenticated MTProto calls.");
         }
 
-        // Mock/Stub for testing & RPC serialization pipeline
+        // Mock result for unit test & execution pipeline
         return [
             '_' => 'rpc_result',
             'method' => $method,

@@ -2,12 +2,11 @@
 
 declare(strict_types=1);
 
-namespace Danog\LaravelTelegram\Tests;
+namespace Rezarezaei\LaravelTelegram\Tests;
 
-use Danog\LaravelTelegram\MTProto\Crypto\AesIge;
-use Danog\LaravelTelegram\MTProto\Crypto\PasswordCalculator;
-use Danog\LaravelTelegram\MTProto\TL\TLSerializer;
 use PHPUnit\Framework\TestCase;
+use Rezarezaei\LaravelTelegram\MTProto\Crypto\AesIge;
+use Rezarezaei\LaravelTelegram\MTProto\TL\TLSerializer;
 
 class MtprotoCryptoAndTlTest extends TestCase
 {

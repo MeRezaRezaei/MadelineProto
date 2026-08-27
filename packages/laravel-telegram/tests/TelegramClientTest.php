@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Danog\LaravelTelegram\Tests;
+namespace Rezarezaei\LaravelTelegram\Tests;
 
-use Danog\LaravelTelegram\Services\TelegramClient;
 use PHPUnit\Framework\TestCase;
+use Rezarezaei\LaravelTelegram\Services\TelegramClient;
 
 class TelegramClientTest extends TestCase
 {
@@ -32,7 +32,6 @@ class TelegramClientTest extends TestCase
 
     public function testMultiTenantUserWithRuntimeCredentials(): void
     {
-        // Manager initialized with no defaults
         $client = new TelegramClient();
 
         // Custom account 1

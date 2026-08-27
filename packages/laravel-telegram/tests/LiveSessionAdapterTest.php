@@ -2,17 +2,16 @@
 
 declare(strict_types=1);
 
-namespace Danog\LaravelTelegram\Tests;
+namespace Rezarezaei\LaravelTelegram\Tests;
 
-use Danog\LaravelTelegram\MTProto\Client;
-use Danog\LaravelTelegram\MTProto\SessionData;
 use PHPUnit\Framework\TestCase;
+use Rezarezaei\LaravelTelegram\MTProto\Client;
+use Rezarezaei\LaravelTelegram\MTProto\SessionData;
 
 class LiveSessionAdapterTest extends TestCase
 {
     public function testSessionAdapterLoadsFromDatabaseRecord(): void
     {
-        // Sample DB record as stored by Laravel / SQLite
         $accountRecord = [
             'id' => 123456789,
             'api_id' => 11111,
