@@ -54,8 +54,21 @@ foreach ($args as $arg) {
     }
 }
 
-$dsn ??= $_ENV['MADLINE_DSN'] ?? getenv('MADLINE_DSN') ?: null;
-$redis ??= $_ENV['MADLINE_REDIS'] ?? getenv('MADLINE_REDIS') ?: null;
+$dsn ??= $_ENV['MADELINE_DSN']
+    ?? $_ENV['MADLINE_DSN']
+    ?? $_ENV['DATABASE_URL']
+    ?? getenv('MADELINE_DSN')
+    ?? getenv('MADLINE_DSN')
+    ?? getenv('DATABASE_URL')
+    ?: null;
+
+$redis ??= $_ENV['MADELINE_REDIS']
+    ?? $_ENV['MADLINE_REDIS']
+    ?? $_ENV['REDIS_URL']
+    ?? getenv('MADELINE_REDIS')
+    ?? getenv('MADLINE_REDIS')
+    ?? getenv('REDIS_URL')
+    ?: null;
 
 if ($dsn === null || $dsn === '') {
     fwrite(STDERR, "Error: --dsn or MADLINE_DSN is required.\n");

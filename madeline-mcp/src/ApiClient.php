@@ -631,7 +631,12 @@ final class ApiClient
         if ($this->store !== null) {
             $account = $this->findStoreAccount($sessionName);
             if ($account !== null && !empty($account['api_id']) && !empty($account['api_hash'])) {
-                return $this->buildDatabaseApi($sessionName, (int) $account['api_id'], (string) $account['api_hash']);
+                return $this->buildDatabaseApi(
+                    $sessionName,
+                    (int) $account['api_id'],
+                    (string) $account['api_hash'],
+                    $account['session_blob'] ?? null
+                );
             }
             if (isset($this->configs[$sessionName])) {
                 $cfg = $this->configs[$sessionName];
@@ -678,7 +683,7 @@ final class ApiClient
         return $api;
     }
 
-    private function buildDatabaseApi(string $sessionName, int $apiId, string $apiHash): API
+    private function buildDatabaseApi(string $sessionName, int $apiId, string $apiHash, ?string $sessionBlob = null): API
     {
         $appInfo = (new AppInfo())
             ->setApiId($apiId)
@@ -695,6 +700,13 @@ final class ApiClient
         $settings->setDb($dbSettings);
 
         $sessionPath = sys_get_temp_dir() . '/madeline_mcp_' . md5($sessionName);
+        if ($sessionBlob !== null && $sessionBlob !== '' && !file_exists($sessionPath . '/safe.php')) {
+            if (!is_dir($sessionPath)) {
+                @mkdir($sessionPath, 0755, true);
+            }
+            file_put_contents($sessionPath . '/safe.php', $sessionBlob);
+        }
+
         $api = new API($sessionPath, $settings);
         $this->apis[$sessionName] = $api;
         return $api;

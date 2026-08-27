@@ -217,6 +217,11 @@ class RelationalStore
 
     public function upsertMessage(array $msg): void
     {
+        $deletedAt = $msg['deleted_at'] ?? null;
+        if ($deletedAt !== null && is_int($deletedAt)) {
+            $deletedAt = $this->driver->getDialect() === 'pgsql' ? date('c', $deletedAt) : $deletedAt;
+        }
+
         $this->upsert('messages', [
             'peer_id' => $msg['peer_id'],
             'id' => $msg['id'],
@@ -226,7 +231,7 @@ class RelationalStore
             'media' => $msg['media'] ?? null,
             'entities' => $msg['entities'] ?? null,
             'raw' => $msg['raw'] ?? null,
-            'deleted_at' => $msg['deleted_at'] ?? null,
+            'deleted_at' => $deletedAt,
         ], ['peer_id', 'id']);
     }
 

@@ -38,9 +38,11 @@ final class FetchQueue
 
     public function enqueue(int $peerId, ?int $untilDateEpoch): void
     {
+        $isPgsql = $this->driver->getDialect() === 'pgsql';
+        $untilDateVal = $untilDateEpoch !== null ? ($isPgsql ? date('c', $untilDateEpoch) : $untilDateEpoch) : null;
         $this->driver->exec(
             'INSERT INTO fetch_jobs (peer_id, until_date, attempts, status) VALUES (?, ?, 0, ?)',
-            [$peerId, $untilDateEpoch, 'pending'],
+            [$peerId, $untilDateVal, 'pending'],
         );
     }
 
@@ -56,10 +58,13 @@ final class FetchQueue
 
         $this->driver->exec("UPDATE fetch_jobs SET status = 'running' WHERE id = ?", [$rows[0]['id']]);
 
+        $ud = $rows[0]['until_date'] ?? null;
+        $epoch = $ud === null ? null : (is_numeric($ud) ? (int) $ud : (int) strtotime((string) $ud));
+
         return [
             'id' => (int) $rows[0]['id'],
             'peer_id' => (int) $rows[0]['peer_id'],
-            'until_date' => $rows[0]['until_date'] === null ? null : (int) $rows[0]['until_date'],
+            'until_date' => $epoch,
         ];
     }
 

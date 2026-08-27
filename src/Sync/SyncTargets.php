@@ -26,10 +26,14 @@ final class SyncTargets
 
     public function add(int $peerId, string $type, ?int $historySinceEpoch = null): void
     {
+        $isPgsql = $this->driver->getDialect() === 'pgsql';
+        $enabledVal = $isPgsql ? true : 1;
+        $historySinceVal = $historySinceEpoch !== null ? ($isPgsql ? date('c', $historySinceEpoch) : $historySinceEpoch) : null;
+        $conflictClause = $isPgsql ? 'ON CONFLICT (peer_id)' : 'ON CONFLICT(peer_id)';
         $this->driver->exec(
-            'INSERT INTO sync_targets (peer_id, type, history_since, enabled) VALUES (?, ?, ?, 1)
-             ON CONFLICT(peer_id) DO UPDATE SET type = excluded.type, history_since = excluded.history_since, enabled = 1',
-            [$peerId, $type, $historySinceEpoch],
+            "INSERT INTO sync_targets (peer_id, type, history_since, enabled) VALUES (?, ?, ?, ?)
+             {$conflictClause} DO UPDATE SET type = excluded.type, history_since = excluded.history_since, enabled = excluded.enabled",
+            [$peerId, $type, $historySinceVal, $enabledVal],
         );
     }
 
@@ -40,12 +44,16 @@ final class SyncTargets
 
     public function setEnabled(int $peerId, bool $enabled): void
     {
-        $this->driver->exec('UPDATE sync_targets SET enabled = ? WHERE peer_id = ?', [(int) $enabled, $peerId]);
+        $isPgsql = $this->driver->getDialect() === 'pgsql';
+        $enabledVal = $isPgsql ? $enabled : (int) $enabled;
+        $this->driver->exec('UPDATE sync_targets SET enabled = ? WHERE peer_id = ?', [$enabledVal, $peerId]);
     }
 
     public function isTarget(int $peerId): bool
     {
-        $rows = $this->driver->query('SELECT 1 FROM sync_targets WHERE peer_id = ? AND enabled = 1', [$peerId]);
+        $isPgsql = $this->driver->getDialect() === 'pgsql';
+        $enabledVal = $isPgsql ? true : 1;
+        $rows = $this->driver->query('SELECT 1 FROM sync_targets WHERE peer_id = ? AND enabled = ?', [$peerId, $enabledVal]);
 
         return isset($rows[0]);
     }
@@ -53,20 +61,30 @@ final class SyncTargets
     public function historySince(int $peerId): ?int
     {
         $rows = $this->driver->query('SELECT history_since FROM sync_targets WHERE peer_id = ?', [$peerId]);
+        if (!isset($rows[0]) || $rows[0]['history_since'] === null) {
+            return null;
+        }
 
-        return isset($rows[0]) ? ($rows[0]['history_since'] === null ? null : (int) $rows[0]['history_since']) : null;
+        $val = $rows[0]['history_since'];
+        return is_numeric($val) ? (int) $val : (int) strtotime((string) $val);
     }
 
     /** @return array<int, array{peer_id: int, type: string, history_since: ?int}> */
     public function listEnabled(): array
     {
+        $isPgsql = $this->driver->getDialect() === 'pgsql';
+        $enabledVal = $isPgsql ? true : 1;
         return array_map(
-            static fn (array $r): array => [
-                'peer_id' => (int) $r['peer_id'],
-                'type' => (string) $r['type'],
-                'history_since' => $r['history_since'] === null ? null : (int) $r['history_since'],
-            ],
-            $this->driver->query('SELECT * FROM sync_targets WHERE enabled = 1 ORDER BY peer_id'),
+            static function (array $r): array {
+                $hs = $r['history_since'] ?? null;
+                $epoch = $hs === null ? null : (is_numeric($hs) ? (int) $hs : (int) strtotime((string) $hs));
+                return [
+                    'peer_id' => (int) $r['peer_id'],
+                    'type' => (string) $r['type'],
+                    'history_since' => $epoch,
+                ];
+            },
+            $this->driver->query('SELECT * FROM sync_targets WHERE enabled = ? ORDER BY peer_id', [$enabledVal]),
         );
     }
 }

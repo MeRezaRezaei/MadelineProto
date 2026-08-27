@@ -10,7 +10,7 @@ PIDFile=/tmp/madeline-daemon.pid
 Restart=always
 RestartSec=5
 Environment=MADLINE_DSN=pgsql:host=127.0.0.1;port=5432;dbname=madeline;user=madeline;password=madeline
-Environment=MADLINE_REDIS=tcp://127.0.0.1:16379
+Environment=MADLINE_REDIS=redis://madeline:madelinepass@127.0.0.1:6379
 
 [Install]
 WantedBy=multi-user.target

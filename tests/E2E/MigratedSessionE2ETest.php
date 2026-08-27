@@ -254,18 +254,31 @@ class MigratedSessionE2ETest extends TestCase
 
         $store = new RelationalStore($driver);
 
-        if (!file_exists($this->liveSessionPath . '/safe.php')) {
-            $this->markTestSkipped('sessions/main_account/safe.php not found');
-        }
+        $testUserId = random_int(100_000_000, 999_999_999);
+        $testSessionDir = $this->tempDir . '/pg_mock_session';
+        mkdir($testSessionDir, 0777, true);
+        file_put_contents($testSessionDir . '/safe.php', '<?php __HALT_COMPILER();' . chr(2) . chr(0) . serialize([
+            'user_id' => $testUserId,
+            'api_id' => 1821270,
+            'api_hash' => 'test_api_hash',
+            'auth_state' => 'authorized',
+            'user' => [
+                'id' => $testUserId,
+                'username' => 'test_pg_user',
+                'first_name' => 'Test',
+                'last_name' => 'User',
+            ],
+            'session_blob' => 'test_blob_content',
+        ]));
 
         $migrator = new SessionMigrator($pgDsn, $store);
         try {
-            $result = $migrator->migrate($this->liveSessionPath);
+            $result = $migrator->migrate($testSessionDir);
 
             $this->assertTrue($result['success']);
-            $this->assertSame(501558149, $result['user_id']);
+            $this->assertSame($testUserId, $result['user_id']);
 
-            $client = new ApiClient('501558149', dsn: $pgDsn, store: $store, driver: $driver);
+            $client = new ApiClient((string) $testUserId, dsn: $pgDsn, store: $store, driver: $driver);
             $catalog = new ToolCatalog($client);
             $server = new McpServer($client, $catalog);
 
@@ -273,15 +286,15 @@ class MigratedSessionE2ETest extends TestCase
                 'jsonrpc' => '2.0',
                 'id' => 1,
                 'method' => 'tools/call',
-                'params' => ['name' => 'get_me', 'arguments' => ['session_name' => '501558149']],
+                'params' => ['name' => 'get_me', 'arguments' => ['session_name' => (string) $testUserId]],
             ]));
 
             $this->assertNotNull($resp);
             $me = json_decode($resp['result']['content'][0]['text'], true);
-            $this->assertSame(501558149, $me['id']);
-            $this->assertSame('merezarezaei', $me['username']);
+            $this->assertSame($testUserId, $me['id']);
+            $this->assertSame('test_pg_user', $me['username']);
         } finally {
-            $store->deleteAccount(501558149);
+            $store->deleteAccount($testUserId);
         }
     }
 }

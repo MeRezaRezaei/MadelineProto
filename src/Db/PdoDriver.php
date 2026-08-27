@@ -62,7 +62,8 @@ class PdoDriver implements SqlDriver
     public function exec(string $sql, array $params = []): int
     {
         $stmt = $this->pdo->prepare($sql);
-        $stmt->execute($params);
+        $this->bindParameters($stmt, $params);
+        $stmt->execute();
 
         return $stmt->rowCount();
     }
@@ -70,9 +71,42 @@ class PdoDriver implements SqlDriver
     public function query(string $sql, array $params = []): array
     {
         $stmt = $this->pdo->prepare($sql);
-        $stmt->execute($params);
+        $this->bindParameters($stmt, $params);
+        $stmt->execute();
 
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        if ($this->dialect === 'pgsql') {
+            foreach ($rows as &$row) {
+                foreach ($row as &$val) {
+                    if (is_resource($val)) {
+                        $val = stream_get_contents($val);
+                    }
+                }
+            }
+        }
+
+        return $rows;
+    }
+
+    private function bindParameters(\PDOStatement $stmt, array $params): void
+    {
+        $isPositional = array_is_list($params);
+        foreach ($params as $key => $val) {
+            $paramKey = $isPositional ? ($key + 1) : (is_int($key) ? $key + 1 : $key);
+            if (is_int($val)) {
+                $stmt->bindValue($paramKey, $val, PDO::PARAM_INT);
+            } elseif (is_bool($val)) {
+                $stmt->bindValue($paramKey, $val, PDO::PARAM_BOOL);
+            } elseif ($val === null) {
+                $stmt->bindValue($paramKey, null, PDO::PARAM_NULL);
+            } elseif (is_resource($val)) {
+                $stmt->bindValue($paramKey, $val, PDO::PARAM_LOB);
+            } elseif (is_string($val) && str_contains($val, "\0")) {
+                $stmt->bindValue($paramKey, $val, PDO::PARAM_LOB);
+            } else {
+                $stmt->bindValue($paramKey, $val, PDO::PARAM_STR);
+            }
+        }
     }
 
     public function close(): void

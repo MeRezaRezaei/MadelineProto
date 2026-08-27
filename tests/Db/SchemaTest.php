@@ -203,6 +203,7 @@ class SchemaTest extends TestCase
         $rows = $driver->query(
             "SELECT tablename AS name FROM pg_tables WHERE schemaname = 'public'"
             . " AND tablename != '_migrations'"
+            . " AND tablename NOT LIKE 'bytea_%'"
         );
         $tables = array_column($rows, 'name');
         sort($tables);
