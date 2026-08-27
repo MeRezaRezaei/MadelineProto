@@ -1,0 +1,57 @@
+#!/usr/bin/env php
+<?php declare(strict_types=1);
+
+use danog\MadelineProto\Db\Migrations;
+use danog\MadelineProto\Db\PdoDriver;
+use danog\MadelineProto\Db\RelationalStore;
+use danog\MadelineProto\Backup\BackupApiFactory;
+use danog\MadelineProto\Backup\BackupProvisioner;
+use danog\MadelineProto\Backup\BackupService;
+use danog\MadelineProto\Backup\BackupVerifier;
+use danog\MadelineProto\Backup\MtProtoGateway;
+
+require __DIR__ . '/../vendor/autoload.php';
+
+$args = array_slice($argv, 1);
+$cmd = $args[0] ?? 'help';
+
+$dsn = $_ENV['MADELINE_DSN'] ?? getenv('MADELINE_DSN') ?? null;
+if ($dsn === null) {
+    fwrite(STDERR, "MADELINE_DSN required\n");
+    exit(1);
+}
+$dsn = PdoDriver::normalizeDsn($dsn);
+
+$pdo = new PdoDriver($dsn);
+(new Migrations($pdo))->migrate();
+$store = new RelationalStore($pdo);
+
+$gw = new MtProtoGateway(BackupApiFactory::mainApi($store, $dsn));
+
+match ($cmd) {
+    'provision' => (function () use ($store, $gw, $args): void {
+        $name = $args[1] ?? 'mysql-main';
+        $bucket = (new BackupProvisioner($store, $gw))->provision($name, $args[2] ?? null);
+        echo "Provisioned bucket {$bucket->name} → channel {$bucket->channelId}\n";
+    })(),
+    'upload' => (function () use ($store, $gw, $args): void {
+        $name = $args[1] ?? 'mysql-main';
+        $archive = $args[2] ?? null;
+        if (!$archive) {
+            fwrite(STDERR, "usage: upload <bucket> <archive>\n");
+            exit(1);
+        }
+        $job = (new BackupService($store, $gw))->backup($name, $archive);
+        echo "Uploaded as job {$job}\n";
+    })(),
+    'verify' => (function () use ($store, $gw): void {
+        (new BackupVerifier($store, $gw, 900))->tick();
+        echo "Verification pass complete\n";
+    })(),
+    'list' => (function () use ($store): void {
+        foreach ($store->listBackupBuckets() as $b) {
+            echo "{$b['name']}  channel={$b['channel_id']}  stale_after={$b['stale_after']}\n";
+        }
+    })(),
+    default => fwrite(STDERR, "commands: provision [name] [alertPeer] | upload <bucket> <archive> | verify | list\n"),
+};

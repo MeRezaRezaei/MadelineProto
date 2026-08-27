@@ -31,6 +31,26 @@ use RuntimeException;
  */
 class PdoDriver implements SqlDriver
 {
+    /**
+     * Normalize a URL-style DSN (postgres://user:pass@host:5432/db) into the
+     * PDO-compatible pgsql: DSN used by MadelineProto Postgres settings.
+     *
+     * Non-postgres DSNs (e.g. sqlite::memory:) are returned unchanged.
+     */
+    public static function normalizeDsn(string $dsn): string
+    {
+        if (str_starts_with($dsn, 'postgres://') || str_starts_with($dsn, 'postgresql://')) {
+            $parts = parse_url($dsn);
+            $host = $parts['host'] ?? '127.0.0.1';
+            $port = isset($parts['port']) ? (int) $parts['port'] : 5432;
+            $db = isset($parts['path']) ? ltrim($parts['path'], '/') : 'madeline';
+            $user = $parts['user'] ?? '';
+            $pass = $parts['pass'] ?? '';
+            return "pgsql:host={$host};port={$port};dbname={$db};user={$user};password={$pass}";
+        }
+        return $dsn;
+    }
+
     private ?PDO $pdo;
     private string $dialect;
 
