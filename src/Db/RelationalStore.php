@@ -343,4 +343,96 @@ class RelationalStore
             [$accountId]
         );
     }
+
+    // ---------------------------------------------------------------------
+    // backup buckets + jobs (backup sink)
+    // ---------------------------------------------------------------------
+
+    public function upsertBackupBucket(array $data): void
+    {
+        $row = [
+            'name' => $data['name'],
+            'channel_id' => $data['channel_id'],
+            'channel_title' => $data['channel_title'] ?? null,
+            'bot_token' => $data['bot_token'] ?? null,
+            'bot_username' => $data['bot_username'] ?? null,
+            'alert_peer' => $data['alert_peer'] ?? null,
+            'check_interval' => $data['check_interval'] ?? 900,
+            'stale_after' => $data['stale_after'] ?? 3900,
+        ];
+        $this->upsert('backup_buckets', $row, ['name']);
+    }
+
+    public function getBackupBucket(string $name): ?array
+    {
+        $rows = $this->driver->query('SELECT * FROM backup_buckets WHERE name = ?', [$name]);
+        return $rows[0] ?? null;
+    }
+
+    /** @return array<int, array<string, mixed>> */
+    public function listBackupBuckets(): array
+    {
+        return $this->driver->query('SELECT * FROM backup_buckets ORDER BY id');
+    }
+
+    public function deleteBackupBucket(int $id): void
+    {
+        $this->driver->exec('DELETE FROM backup_jobs WHERE bucket_id = ?', [$id]);
+        $this->driver->exec('DELETE FROM backup_buckets WHERE id = ?', [$id]);
+    }
+
+    public function insertBackupJob(array $data): int
+    {
+        $row = [
+            'bucket_id' => $data['bucket_id'],
+            'status' => $data['status'] ?? 'pending',
+            'archive_name' => $data['archive_name'] ?? null,
+            'size' => $data['size'] ?? 0,
+            'sha256' => $data['sha256'] ?? null,
+            'part_count' => $data['part_count'] ?? 0,
+            'message_ids' => $data['message_ids'] ?? null,
+            'last_checked_message_id' => $data['last_checked_message_id'] ?? null,
+            'completed_at' => $data['completed_at'] ?? null,
+            'error' => $data['error'] ?? null,
+        ];
+        $this->driver->exec(
+            'INSERT INTO backup_jobs (bucket_id, status, archive_name, size, sha256, part_count, message_ids, last_checked_message_id, completed_at, error) '
+            . 'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            array_values($row)
+        );
+        $fn = $this->driver->getDialect() === 'pgsql' ? 'lastval()' : 'last_insert_rowid()';
+        try {
+            $id = $this->driver->query('SELECT ' . $fn . ' AS id');
+        } catch (\Throwable $e) {
+            $id = $this->driver->query('SELECT max(id) AS id FROM backup_jobs');
+        }
+        return (int) ($id[0]['id'] ?? 0);
+    }
+
+    public function updateBackupJob(int $id, array $cols): void
+    {
+        $sets = [];
+        $params = [];
+        foreach ($cols as $k => $v) {
+            $sets[] = $k . ' = ?';
+            $params[] = $v;
+        }
+        $params[] = $id;
+        $this->driver->exec('UPDATE backup_jobs SET ' . implode(', ', $sets) . ' WHERE id = ?', $params);
+    }
+
+    public function getBackupJob(int $id): ?array
+    {
+        $rows = $this->driver->query('SELECT * FROM backup_jobs WHERE id = ?', [$id]);
+        return $rows[0] ?? null;
+    }
+
+    public function getLatestBackupJob(int $bucketId): ?array
+    {
+        $rows = $this->driver->query(
+            'SELECT * FROM backup_jobs WHERE bucket_id = ? ORDER BY id DESC LIMIT 1',
+            [$bucketId]
+        );
+        return $rows[0] ?? null;
+    }
 }
