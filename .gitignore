@@ -160,6 +160,12 @@ pre.json
 
 # opencode session
 .opencode/
+.wt/
+.worktrees/
+worktrees/
+.superpowers/
+coverage.txt
+
 
 # madeline-mcp runtime data — never commit account sessions or the API registry
 /madeline-mcp-accounts.json
