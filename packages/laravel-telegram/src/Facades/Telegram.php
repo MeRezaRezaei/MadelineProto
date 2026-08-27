@@ -4,13 +4,15 @@ declare(strict_types=1);
 
 namespace Danog\LaravelTelegram\Facades;
 
+use Danog\LaravelTelegram\Services\BotClient;
 use Danog\LaravelTelegram\Services\TelegramClient;
+use Danog\LaravelTelegram\Services\UserAccountScope;
 use Illuminate\Support\Facades\Facade;
 
 /**
- * @method static TelegramClient forAccount(int $accountId, ?string $authKey = null, int $dcId = 2)
- * @method static array call(string $method, array $params = [])
- * @method static array sendMessage(int|string $peer, string $text, array $options = [])
+ * @method static UserAccountScope user(int $accountId, ?string $authKey = null, int $dcId = 2, ?int $apiId = null, ?string $apiHash = null, ?array $proxyConfig = null)
+ * @method static UserAccountScope forAccount(int $accountId, ?string $authKey = null, int $dcId = 2, ?int $apiId = null, ?string $apiHash = null, ?array $proxyConfig = null)
+ * @method static BotClient bot(?string $botToken = null, ?array $proxyConfig = null)
  *
  * @see \Danog\LaravelTelegram\Services\TelegramClient
  */

@@ -19,9 +19,10 @@ class TelegramServiceProvider extends ServiceProvider
         $this->app->singleton(TelegramClient::class, function ($app) {
             $config = $app['config']['telegram'] ?? [];
             return new TelegramClient(
-                apiId: (int)($config['api_id'] ?? 0),
-                apiHash: (string)($config['api_hash'] ?? ''),
-                proxyConfig: $config['proxy'] ?? null
+                defaultApiId: (int)($config['api_id'] ?? 0),
+                defaultApiHash: (string)($config['api_hash'] ?? ''),
+                defaultBotToken: $config['default_bot_token'] ?? null,
+                defaultProxyConfig: $config['proxy'] ?? null
             );
         });
 

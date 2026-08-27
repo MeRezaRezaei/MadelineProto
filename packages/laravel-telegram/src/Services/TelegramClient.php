@@ -9,70 +9,90 @@ use Danog\LaravelTelegram\MTProto\SessionData;
 use RuntimeException;
 
 /**
- * High-level Laravel Telegram Client.
- * Provides fluent multi-account MTProto RPC calls and proxy routing.
+ * High-level Laravel Telegram Client Manager.
+ * Supports multi-tenant runtime API credentials, user sessions, and bot accounts.
  */
 class TelegramClient
 {
-    protected ?MTProtoClient $mtproto = null;
-    protected ?SessionData $session = null;
-
     public function __construct(
-        public int $apiId = 0,
-        public string $apiHash = '',
-        public ?array $proxyConfig = null
+        public int $defaultApiId = 0,
+        public string $defaultApiHash = '',
+        public ?string $defaultBotToken = null,
+        public ?array $defaultProxyConfig = null
     ) {}
 
     /**
-     * Bind a specific Telegram account session to this client instance.
+     * Create or bind an MTProto user account session.
      *
      * @param int $accountId Telegram user ID
-     * @param string|null $authKey Decrypted raw MTProto AuthKey string
-     * @param int $dcId Primary DC ID
+     * @param string|null $authKey Decrypted raw MTProto AuthKey
+     * @param int $dcId Primary DC ID (default: 2)
+     * @param int|null $apiId Custom runtime API ID (falls back to default if null)
+     * @param string|null $apiHash Custom runtime API Hash (falls back to default if null)
+     * @param array|null $proxyConfig Custom runtime proxy config (falls back to default if null)
      */
-    public function forAccount(int $accountId, ?string $authKey = null, int $dcId = 2): self
-    {
-        $clone = clone $this;
-        $clone->session = new SessionData(
+    public function user(
+        int $accountId,
+        ?string $authKey = null,
+        int $dcId = 2,
+        ?int $apiId = null,
+        ?string $apiHash = null,
+        ?array $proxyConfig = null
+    ): UserAccountScope {
+        $finalApiId = $apiId ?? $this->defaultApiId;
+        $finalApiHash = $apiHash ?? $this->defaultApiHash;
+        $finalProxy = $proxyConfig ?? $this->defaultProxyConfig;
+
+        if (empty($finalApiId) || empty($finalApiHash)) {
+            throw new RuntimeException("Telegram API ID and API Hash are required. Pass them to user() or configure defaults in config/telegram.php.");
+        }
+
+        $session = new SessionData(
             dcId: $dcId,
             authKey: $authKey ?? '',
             userId: $accountId
         );
 
-        $clone->mtproto = new MTProtoClient(
-            apiId: $this->apiId,
-            apiHash: $this->apiHash,
-            session: $clone->session
+        $mtproto = new MTProtoClient(
+            apiId: $finalApiId,
+            apiHash: $finalApiHash,
+            session: $session
         );
 
-        if ($this->proxyConfig) {
-            $clone->mtproto->setProxy($this->proxyConfig);
+        if ($finalProxy) {
+            $mtproto->setProxy($finalProxy);
         }
 
-        return $clone;
+        return new UserAccountScope($mtproto, $session);
     }
 
     /**
-     * Executes any Telegram MTProto method directly (e.g. 'messages.sendMessage', 'users.getFullUser').
+     * Backward-compatible alias for user().
      */
-    public function call(string $method, array $params = []): array
-    {
-        if ($this->mtproto === null) {
-            throw new RuntimeException("No Telegram account bound. Call forAccount(\$accountId, \$authKey) first.");
-        }
-
-        return $this->mtproto->call($method, $params);
+    public function forAccount(
+        int $accountId,
+        ?string $authKey = null,
+        int $dcId = 2,
+        ?int $apiId = null,
+        ?string $apiHash = null,
+        ?array $proxyConfig = null
+    ): UserAccountScope {
+        return $this->user($accountId, $authKey, $dcId, $apiId, $apiHash, $proxyConfig);
     }
 
     /**
-     * Convenient shortcut for sending text messages.
+     * Create or bind a Bot API client.
+     *
+     * @param string|null $botToken Custom runtime Bot Token (falls back to default if null)
+     * @param array|null $proxyConfig Custom runtime proxy
      */
-    public function sendMessage(int|string $peer, string $text, array $options = []): array
+    public function bot(?string $botToken = null, ?array $proxyConfig = null): BotClient
     {
-        return $this->call('messages.sendMessage', array_merge([
-            'peer' => $peer,
-            'message' => $text,
-            'random_id' => random_int(1, PHP_INT_MAX),
-        ], $options));
+        $finalToken = $botToken ?? $this->defaultBotToken;
+        if (empty($finalToken)) {
+            throw new RuntimeException("Telegram Bot Token is required. Pass it to bot() or configure TELEGRAM_BOT_TOKEN in .env.");
+        }
+
+        return new BotClient($finalToken, $proxyConfig ?? $this->defaultProxyConfig);
     }
 }
