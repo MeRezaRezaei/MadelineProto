@@ -38,12 +38,20 @@ final class Daemon
     /** @var list<string> EventLoop signal-watcher ids, cancelled on stop(). */
     private array $signalWatchers = [];
 
+    /** @var list<\danog\Loop\PeriodicLoop> */
+    private array $extraLoops = [];
+
+    /**
+     * @param list<\danog\Loop\PeriodicLoop> $extraLoops
+     */
     public function __construct(
         private readonly SqlDriver $driver,
         private readonly Cache $cache,
         private readonly AccountManager $accounts,
         private readonly SyncLoop $sync,
+        array $extraLoops = [],
     ) {
+        $this->extraLoops = $extraLoops;
     }
 
     /**
@@ -58,6 +66,9 @@ final class Daemon
 
         $this->running = true;
         $this->sync->start();
+        foreach ($this->extraLoops as $loop) {
+            $loop->start();
+        }
 
         $daemon = $this;
         $this->signalWatchers[] = EventLoop::onSignal(\SIGTERM, static function () use ($daemon): void {
@@ -80,6 +91,9 @@ final class Daemon
 
         $this->running = false;
         $this->sync->stop();
+        foreach ($this->extraLoops as $loop) {
+            $loop->stop();
+        }
         foreach ($this->signalWatchers as $watcherId) {
             EventLoop::cancel($watcherId);
         }

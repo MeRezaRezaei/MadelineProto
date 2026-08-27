@@ -1,0 +1,92 @@
+#!/usr/bin/env php
+<?php declare(strict_types=1);
+
+/**
+ * This file is part of MadelineProto.
+ * MadelineProto is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+ * MadelineProto is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ * See the GNU Affero General Public License for more details.
+ * You should have received a copy of the GNU General Public License along with MadelineProto.
+ * If not, see <http://www.gnu.org/licenses/>.
+ *
+ * @author    Daniil Gentili <daniil@daniil.it>
+ * @copyright 2016-2025 Daniil Gentili <daniil@daniil.it>
+ * @license   https://opensource.org/licenses/AGPL-3.0 AGPLv3
+ * @link https://docs.madelineproto.xyz MadelineProto documentation
+ */
+
+use danog\MadelineProto\Db\Migrations;
+use danog\MadelineProto\Db\PdoDriver;
+use danog\MadelineProto\Db\RelationalStore;
+use danog\MadelineProto\Sync\BackfillWorker;
+use danog\MadelineProto\Sync\FetchQueue;
+use danog\MadelineProto\Sync\SyncTargets;
+
+require __DIR__ . '/../vendor/autoload.php';
+
+$args = array_slice($argv, 1);
+$subcommand = null;
+$dsn = null;
+$redis = null;
+$peer = null;
+$type = 'channel';
+$since = null;
+$quota = 100;
+
+foreach ($args as $arg) {
+    if (str_starts_with($arg, '--dsn=')) {
+        $dsn = substr($arg, 6);
+    } elseif (str_starts_with($arg, '--redis=')) {
+        $redis = substr($arg, 8);
+    } elseif (str_starts_with($arg, '--peer=')) {
+        $peer = (int) substr($arg, 7);
+    } elseif (str_starts_with($arg, '--type=')) {
+        $type = substr($arg, 7);
+    } elseif (str_starts_with($arg, '--since=')) {
+        $val = substr($arg, 8);
+        $since = $val === 'all' ? null : (int) $val;
+    } elseif (str_starts_with($arg, '--quota=')) {
+        $quota = (int) substr($arg, 8);
+    } elseif ($arg === 'enqueue' || $arg === 'run') {
+        $subcommand = $arg;
+    } elseif (!str_starts_with($arg, '-') && $subcommand === null) {
+        $subcommand = $arg;
+    }
+}
+
+$dsn ??= $_ENV['MADLINE_DSN'] ?? getenv('MADLINE_DSN') ?: null;
+$redis ??= $_ENV['MADLINE_REDIS'] ?? getenv('MADLINE_REDIS') ?: null;
+
+if ($dsn === null || $dsn === '') {
+    fwrite(STDERR, "Error: --dsn or MADLINE_DSN is required.\n");
+    exit(1);
+}
+
+$driver = new PdoDriver($dsn);
+(new Migrations($driver))->migrate();
+$store = new RelationalStore($driver);
+$queue = new FetchQueue($driver);
+$targets = new SyncTargets($driver);
+
+if ($subcommand === 'enqueue') {
+    if ($peer === null) {
+        fwrite(STDERR, "Error: --peer=<id> is required for enqueue.\n");
+        exit(1);
+    }
+    // Default 1 year history if not explicitly provided
+    $historySince = ($since !== null || in_array('--since=all', $args, true)) ? $since : (time() - 31557600);
+    $targets->add($peer, $type, $historySince);
+    $queue->enqueue($peer, $historySince);
+    echo "Enqueued backfill for peer {$peer} (type: {$type}, since: " . ($historySince === null ? 'all' : (string) $historySince) . ")\n";
+    exit(0);
+}
+
+if ($subcommand === 'run') {
+    $worker = new BackfillWorker($store, $queue, static fn (): array => [], 100);
+    $worker->run($quota);
+    echo "Backfill pass completed with quota {$quota}.\n";
+    exit(0);
+}
+
+fwrite(STDERR, "Usage: madeline-backfill <enqueue|run> --dsn=... [--redis=...] [--peer=<id>] [--since=<epoch|all>] [--quota=<n>]\n");
+exit(1);

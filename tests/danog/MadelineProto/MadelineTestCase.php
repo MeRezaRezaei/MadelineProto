@@ -26,15 +26,20 @@ abstract class MadelineTestCase extends TestCase
         if (self::$MadelineProto !== null) {
             return;
         }
+        $apiHash = getenv('API_HASH');
+        $apiId = getenv('API_ID');
+        if (!$apiHash || !$apiId) {
+            self::markTestSkipped('API_ID and API_HASH environment variables are required.');
+        }
         $settings = new Settings;
-        $settings->getAppInfo()->setApiId((int) getenv('API_ID'))->setApiHash(getenv('API_HASH'));
+        $settings->getAppInfo()->setApiId((int) $apiId)->setApiHash((string) $apiHash);
         $settings->getLogger()->setType(Logger::FILE_LOGGER)->setExtra(__DIR__.'/../../MadelineProto.log')->setLevel(Logger::ULTRA_VERBOSE);
         self::$MadelineProto = new API(
             'testing.madeline',
             $settings
         );
         $unlock = Tools::flock(sys_get_temp_dir().'/login.flock', LOCK_EX);
-        self::$MadelineProto->botLogin(getenv('BOT_TOKEN'));
+        self::$MadelineProto->botLogin((string) getenv('BOT_TOKEN'));
         $unlock();
     }
 

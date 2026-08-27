@@ -167,15 +167,27 @@ class DaemonTest extends TestCase
         $daemon->boot();
         $this->assertTrue($daemon->isRunning());
 
-        // Send SIGTERM to self while the loop runs; Revolt dispatches it and the
-        // boot() handler calls stop(). The watchdog guarantees run() returns even
-        // if the signal is missed.
-        EventLoop::defer(static function (): void {
-            posix_kill(getmypid(), SIGTERM);
+        $prevHandler = EventLoop::getErrorHandler();
+        EventLoop::setErrorHandler(static function (\Throwable $e): void {
+            if ($e instanceof \Amp\SignalException || ($e instanceof \Revolt\EventLoop\UncaughtThrowable && $e->getPrevious() instanceof \Amp\SignalException)) {
+                return;
+            }
+            throw $e;
         });
-        $watchdog = EventLoop::delay(2.0, static fn () => $daemon->stop());
-        EventLoop::reference($watchdog);
-        EventLoop::run();
+
+        try {
+            // Send SIGTERM to self while the loop runs; Revolt dispatches it and the
+            // boot() handler calls stop(). The watchdog guarantees run() returns even
+            // if the signal is missed.
+            EventLoop::defer(static function (): void {
+                posix_kill(getmypid(), SIGTERM);
+            });
+            $watchdog = EventLoop::delay(2.0, static fn () => $daemon->stop());
+            EventLoop::reference($watchdog);
+            EventLoop::run();
+        } finally {
+            EventLoop::setErrorHandler($prevHandler);
+        }
 
         $this->assertFalse($daemon->isRunning());
     }

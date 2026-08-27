@@ -15,14 +15,20 @@
  * @link https://docs.madelineproto.xyz MadelineProto documentation
  */
 
+use danog\Loop\PeriodicLoop;
 use danog\MadelineProto\Accounts\AccountManager;
 use danog\MadelineProto\Daemon\Daemon;
 use danog\MadelineProto\Db\Cache;
 use danog\MadelineProto\Db\Migrations;
 use danog\MadelineProto\Db\PdoDriver;
 use danog\MadelineProto\Db\RelationalStore;
+use danog\MadelineProto\Events\EventBus;
+use danog\MadelineProto\Sync\BackfillWorker;
+use danog\MadelineProto\Sync\FetchQueue;
 use danog\MadelineProto\Sync\NullAccountDataProvider;
 use danog\MadelineProto\Sync\SyncLoop;
+use danog\MadelineProto\Sync\SyncTargets;
+use danog\MadelineProto\Sync\UpdateHandler;
 use Revolt\EventLoop;
 
 require __DIR__ . '/../vendor/autoload.php';
@@ -111,9 +117,26 @@ $driver = new PdoDriver($dsn);
 $store = new RelationalStore($driver);
 $accounts = new AccountManager($store);
 $cache = new Cache($redis);
+
+$bus = new EventBus($redis, $redis, [], $redis);
+$targets = new SyncTargets($driver);
+$handler = new UpdateHandler($store, $cache, $bus, $targets);
+$fetchQueue = new FetchQueue($driver);
+$backfill = new BackfillWorker($store, $fetchQueue, static fn (): array => [], 100);
+
+$backfillLoop = new PeriodicLoop(
+    static function () use ($backfill): bool {
+        $backfill->run(100, 10);
+
+        return false;
+    },
+    'backfill-loop',
+    60.0
+);
+
 $sync = new SyncLoop($accounts, $store, $cache, new NullAccountDataProvider());
 
-$daemon = new Daemon($driver, $cache, $accounts, $sync);
+$daemon = new Daemon($driver, $cache, $accounts, $sync, [$backfillLoop]);
 
 // Write PID file.
 file_put_contents($pidFile, (string) getmypid());

@@ -71,6 +71,7 @@ CREATE TABLE IF NOT EXISTS messages (
     media      TEXT,
     entities   TEXT,
     raw        TEXT,
+    deleted_at INTEGER NULL,
     PRIMARY KEY (peer_id, id)
 );
 CREATE INDEX IF NOT EXISTS messages_peer_id_id ON messages (peer_id, id);
@@ -100,3 +101,20 @@ CREATE TABLE IF NOT EXISTS account_entities (
     relationship TEXT,
     PRIMARY KEY (account_id, entity_id)
 );
+
+CREATE TABLE IF NOT EXISTS sync_targets (
+    peer_id INTEGER PRIMARY KEY,
+    type TEXT NOT NULL,
+    history_since INTEGER NULL,
+    enabled INTEGER NOT NULL DEFAULT 1
+);
+CREATE INDEX IF NOT EXISTS idx_sync_targets_enabled ON sync_targets (enabled);
+
+CREATE TABLE IF NOT EXISTS fetch_jobs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    peer_id INTEGER NOT NULL,
+    until_date INTEGER NULL,
+    attempts INTEGER NOT NULL DEFAULT 0,
+    status TEXT NOT NULL DEFAULT 'pending'
+);
+CREATE INDEX IF NOT EXISTS idx_fetch_jobs_status ON fetch_jobs (status);

@@ -66,6 +66,12 @@ final class DataCenterTest extends AsyncTestCase
         self::$proxyEndpoint = InternetAddress::fromString(str_replace('tcp://', '', $addr));
         */
 
+        $apiHash = getenv('API_HASH');
+        $apiId = getenv('API_ID');
+        if (!$apiHash || !$apiId) {
+            self::markTestSkipped('API_ID and API_HASH environment variables are required.');
+        }
+
         self::$main = new API(
             sys_get_temp_dir(). '/'.random_int(0, PHP_INT_MAX).'_'.getmypid().'testing_datacenter_main.madeline',
             self::getBaseSettings(false)
