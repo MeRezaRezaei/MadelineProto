@@ -345,6 +345,34 @@ class RelationalStore
     }
 
     // ---------------------------------------------------------------------
+    // backup jobs — stuck upload detection
+    // ---------------------------------------------------------------------
+
+    /**
+     * Jobs for a bucket that are still `uploading` and started more than
+     * $timeoutSeconds ago (dialect-agnostic: compares in PHP after fetch).
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function getStuckUploadingJobs(int $bucketId, int $timeoutSeconds): array
+    {
+        $rows = $this->driver->query(
+            "SELECT * FROM backup_jobs WHERE bucket_id = ? AND status = 'uploading'",
+            [$bucketId]
+        );
+        $cutoff = time() - $timeoutSeconds;
+        $stuck = [];
+        foreach ($rows as $row) {
+            $runAt = $row['run_at'] ?? null;
+            $ts = is_numeric($runAt) ? (int) $runAt : (@strtotime((string) $runAt) ?: 0);
+            if ($ts > 0 && $ts < $cutoff) {
+                $stuck[] = $row;
+            }
+        }
+        return $stuck;
+    }
+
+    // ---------------------------------------------------------------------
     // backup buckets + jobs (backup sink)
     // ---------------------------------------------------------------------
 

@@ -36,4 +36,29 @@ final class BackupVerifierTest extends TestCase
         $verifier->tick();
         $this->assertFalse($gw->alertSent());
     }
+
+    public function testAlertsOnStuckUploading(): void
+    {
+        $driver = new PdoDriver('sqlite::memory:');
+        (new \danog\MadelineProto\Db\Migrations($driver))->migrate();
+        $store = new RelationalStore($driver);
+        $gw = new FakeTelegramGateway();
+        $gw->createChannel('t', 'a');
+        $store->upsertBackupBucket(['name' => 'mysql-main', 'channel_id' => 1, 'channel_title' => 't', 'bot_token' => 'x', 'bot_username' => 'u_bot', 'alert_peer' => 'admin', 'check_interval' => 900, 'stale_after' => 3900]);
+        $bucket = $store->getBackupBucket('mysql-main');
+        $jobId = $store->insertBackupJob([
+            'bucket_id' => (int) $bucket['id'],
+            'status' => 'uploading',
+            'archive_name' => 'dump.sql.zip',
+            'size' => 0, 'sha256' => null, 'part_count' => 0,
+            'message_ids' => null, 'last_checked_message_id' => null,
+            'completed_at' => null, 'error' => null,
+        ]);
+        // Force run_at well past the upload timeout so the job is "stuck".
+        $store->updateBackupJob($jobId, ['run_at' => date('c', time() - 3600)]);
+        $verifier = new BackupVerifier($store, $gw, 900, 1800);
+        $verifier->tick();
+        $this->assertTrue($gw->alertSent());
+        $this->assertStringContainsString('stuck', $gw->lastAlert());
+    }
 }

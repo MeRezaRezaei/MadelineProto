@@ -24,12 +24,12 @@ final class BackupServiceTest extends TestCase
     public function testBackupMarksCompleted(): void
     {
         $file = tempnam(sys_get_temp_dir(), 'arc');
-        file_put_contents($file, str_repeat('X', 2500)); // 2 parts @ 1500
+        file_put_contents($file, str_repeat('X', 2500)); // 1 part at the 1.5 GB default chunk size
         $jobId = $this->svc->backup('mysql-main', $file);
         $job = $this->store->getBackupJob($jobId);
         $this->assertSame('completed', $job['status']);
-        $this->assertSame(2, (int) $job['part_count']);
-        $this->assertCount(2, json_decode($job['message_ids'], true));
+        $this->assertSame(1, (int) $job['part_count']);
+        $this->assertCount(1, json_decode($job['message_ids'], true));
         unlink($file);
     }
 

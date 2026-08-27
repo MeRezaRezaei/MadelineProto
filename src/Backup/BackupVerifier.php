@@ -13,6 +13,7 @@ final class BackupVerifier
         private RelationalStore $store,
         private TelegramGateway $gw,
         private int $intervalSeconds = 900,
+        private int $uploadTimeoutSeconds = 1800,
     ) {
         $this->alerts = new AlertSender($gw);
     }
@@ -29,7 +30,7 @@ final class BackupVerifier
                 $cursor = $job['last_checked_message_id'] ?? null;
                 if ($cursor === null || $latest > (int) $cursor) {
                     $this->store->updateBackupJob((int) $job['id'], ['last_checked_message_id' => $latest]);
-                    continue; // advanced → healthy
+                    // advanced → healthy for staleness; still check stuck uploads below
                 }
             }
 
@@ -44,6 +45,14 @@ final class BackupVerifier
 
             if ($elapsed >= $bucket->staleAfter) {
                 $this->alerts->alert($bucket, 'stale: no new backup in channel within ' . $bucket->staleAfter . 's');
+            }
+
+            // Spec §6.4: alert on jobs wedged in `uploading` (upload never finished).
+            foreach ($this->store->getStuckUploadingJobs($bucket->id, $this->uploadTimeoutSeconds) as $stuck) {
+                $this->alerts->alert(
+                    $bucket,
+                    'stuck: backup job ' . $stuck['id'] . ' has been uploading for > ' . $this->uploadTimeoutSeconds . 's'
+                );
             }
         }
     }

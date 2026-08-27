@@ -2,9 +2,6 @@
 namespace danog\MadelineProto\Backup;
 
 use danog\MadelineProto\API;
-use danog\MadelineProto\Settings;
-use danog\MadelineProto\Settings\AppInfo;
-use danog\MadelineProto\Settings\Database\Postgres;
 
 /**
  * Real TelegramGateway backed by the logged-in MAIN (user) account's API.
@@ -80,7 +77,13 @@ final class MtProtoGateway implements TelegramGateway
             null,
             basename($partPath)
         );
-        return (int) ($msg->getId() ?? 0);
+        $id = (int) ($msg->getId() ?? 0);
+        // A zero id would silently record a failed part as confirmed, breaking
+        // the "completed only after every part is confirmed" invariant.
+        if ($id <= 0) {
+            throw new \RuntimeException('sendDocument returned no message id for part ' . $index);
+        }
+        return $id;
     }
 
     public function getLatestMessageId(int $channelId): ?int
