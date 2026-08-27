@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Rezarezaei\LaravelTelegram\MTProto\Transport;
+namespace MeRezaRezaei\LaravelTelegram\MTProto\Transport;
 
 use RuntimeException;
 

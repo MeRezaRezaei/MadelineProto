@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Rezarezaei\LaravelTelegram\MTProto;
+namespace MeRezaRezaei\LaravelTelegram\MTProto;
 
 /**
  * Stateless Session Data Transfer Object.

@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Rezarezaei\LaravelTelegram\Services;
+namespace MeRezaRezaei\LaravelTelegram\Services;
 
-use Rezarezaei\LaravelTelegram\MTProto\Client as MTProtoClient;
-use Rezarezaei\LaravelTelegram\MTProto\SessionData;
+use MeRezaRezaei\LaravelTelegram\MTProto\Client as MTProtoClient;
+use MeRezaRezaei\LaravelTelegram\MTProto\SessionData;
 use RuntimeException;
 
 /**

@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace Rezarezaei\LaravelTelegram\Tests;
+namespace MeRezaRezaei\LaravelTelegram\Tests;
 
 use PHPUnit\Framework\TestCase;
-use Rezarezaei\LaravelTelegram\MTProto\Client;
-use Rezarezaei\LaravelTelegram\MTProto\SessionData;
+use MeRezaRezaei\LaravelTelegram\MTProto\Client;
+use MeRezaRezaei\LaravelTelegram\MTProto\SessionData;
 
 class LiveSessionAdapterTest extends TestCase
 {

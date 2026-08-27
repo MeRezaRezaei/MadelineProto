@@ -1,11 +1,11 @@
 {
-    "name": "rezarezaei/laravel-telegram",
+    "name": "merezarezaei/laravel-telegram",
     "description": "High-performance, stateless MTProto 2.0 Telegram client and Mini App platform for Laravel",
     "type": "library",
     "license": "MIT",
     "authors": [
         {
-            "name": "Reza Rezaei"
+            "name": "MeRezaRezaei"
         }
     ],
     "require": {
@@ -20,21 +20,21 @@
     },
     "autoload": {
         "psr-4": {
-            "Rezarezaei\\LaravelTelegram\\": "src/"
+            "MeRezaRezaei\\LaravelTelegram\\": "src/"
         }
     },
     "autoload-dev": {
         "psr-4": {
-            "Rezarezaei\\LaravelTelegram\\Tests\\": "tests/"
+            "MeRezaRezaei\\LaravelTelegram\\Tests\\": "tests/"
         }
     },
     "extra": {
         "laravel": {
             "providers": [
-                "Rezarezaei\\LaravelTelegram\\TelegramServiceProvider"
+                "MeRezaRezaei\\LaravelTelegram\\TelegramServiceProvider"
             ],
             "aliases": {
-                "Telegram": "Rezarezaei\\LaravelTelegram\\Facades\\Telegram"
+                "Telegram": "MeRezaRezaei\\LaravelTelegram\\Facades\\Telegram"
             }
         }
     }

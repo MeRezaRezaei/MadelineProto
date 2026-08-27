@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Rezarezaei\LaravelTelegram\Services;
+namespace MeRezaRezaei\LaravelTelegram\Services;
 
 use RuntimeException;
 
@@ -46,7 +46,6 @@ class BotClient
             throw new RuntimeException("Bot token is required to make Bot API calls.");
         }
 
-        // Standard Bot API mock for unit tests & execution pipeline
         return [
             'ok' => true,
             'result' => [

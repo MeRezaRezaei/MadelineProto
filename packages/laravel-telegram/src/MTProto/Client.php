@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace Rezarezaei\LaravelTelegram\MTProto;
+namespace MeRezaRezaei\LaravelTelegram\MTProto;
 
-use Rezarezaei\LaravelTelegram\MTProto\Crypto\AesIge;
-use Rezarezaei\LaravelTelegram\MTProto\Crypto\PasswordCalculator;
-use Rezarezaei\LaravelTelegram\MTProto\TL\TLSerializer;
-use Rezarezaei\LaravelTelegram\MTProto\Transport\Socks5Proxy;
+use MeRezaRezaei\LaravelTelegram\MTProto\Crypto\AesIge;
+use MeRezaRezaei\LaravelTelegram\MTProto\Crypto\PasswordCalculator;
+use MeRezaRezaei\LaravelTelegram\MTProto\TL\TLSerializer;
+use MeRezaRezaei\LaravelTelegram\MTProto\Transport\Socks5Proxy;
 use RuntimeException;
 
 /**

@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Rezarezaei\LaravelTelegram\Tests;
+namespace MeRezaRezaei\LaravelTelegram\Tests;
 
 use PHPUnit\Framework\TestCase;
-use Rezarezaei\LaravelTelegram\Services\TelegramClient;
+use MeRezaRezaei\LaravelTelegram\Services\TelegramClient;
 
 class TelegramClientTest extends TestCase
 {

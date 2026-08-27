@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace Rezarezaei\LaravelTelegram\Tests;
+namespace MeRezaRezaei\LaravelTelegram\Tests;
 
 use PHPUnit\Framework\TestCase;
-use Rezarezaei\LaravelTelegram\MTProto\Crypto\AesIge;
-use Rezarezaei\LaravelTelegram\MTProto\TL\TLSerializer;
+use MeRezaRezaei\LaravelTelegram\MTProto\Crypto\AesIge;
+use MeRezaRezaei\LaravelTelegram\MTProto\TL\TLSerializer;
 
 class MtprotoCryptoAndTlTest extends TestCase
 {

@@ -1,6 +1,6 @@
 # Laravel Telegram (MTProto 2.0 & Bot API Client)
 
-**Author:** Reza Rezaei  
+**Author:** MeRezaRezaei  
 **License:** MIT  
 
 A modern, high-performance, stateless **MTProto 2.0 and Bot API client for Laravel**.
@@ -26,7 +26,7 @@ Designed strictly as a **protocol client** — meaning **zero database bloat, ze
 ## 📦 Installation
 
 ```bash
-composer require rezarezaei/laravel-telegram
+composer require merezarezaei/laravel-telegram
 ```
 
 Publish configuration:
@@ -41,7 +41,7 @@ php artisan vendor:publish --tag="telegram-config"
 ### 1. Multi-Tenant User Account (Runtime Credentials)
 
 ```php
-use Rezarezaei\LaravelTelegram\Facades\Telegram;
+use MeRezaRezaei\LaravelTelegram\Facades\Telegram;
 
 // Bind to an authenticated account (decrypted AuthKey from your DB)
 $userClient = Telegram::user(
@@ -122,4 +122,4 @@ Route::middleware('tg.miniapp')->group(function () {
 
 ## 🛡️ License
 
-Released under the **MIT License**. Copyright (c) 2026 Reza Rezaei.
+Released under the **MIT License**. Copyright (c) 2026 MeRezaRezaei.

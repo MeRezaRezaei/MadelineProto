@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Rezarezaei\LaravelTelegram\MTProto\TL;
+namespace MeRezaRezaei\LaravelTelegram\MTProto\TL;
 
 /**
  * Basic TL (Type Language) binary parser & packer.

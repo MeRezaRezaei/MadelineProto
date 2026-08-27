@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace Rezarezaei\LaravelTelegram;
+namespace MeRezaRezaei\LaravelTelegram;
 
 use Illuminate\Routing\Router;
 use Illuminate\Support\ServiceProvider;
-use Rezarezaei\LaravelTelegram\Http\Middleware\VerifyTelegramMiniAppInitData;
-use Rezarezaei\LaravelTelegram\Services\TelegramAuthService;
-use Rezarezaei\LaravelTelegram\Services\TelegramClient;
+use MeRezaRezaei\LaravelTelegram\Http\Middleware\VerifyTelegramMiniAppInitData;
+use MeRezaRezaei\LaravelTelegram\Services\TelegramAuthService;
+use MeRezaRezaei\LaravelTelegram\Services\TelegramClient;
 
 class TelegramServiceProvider extends ServiceProvider
 {

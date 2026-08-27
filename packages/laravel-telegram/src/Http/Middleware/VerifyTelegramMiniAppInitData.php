@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Rezarezaei\LaravelTelegram\Http\Middleware;
+namespace MeRezaRezaei\LaravelTelegram\Http\Middleware;
 
 use Closure;
 use Illuminate\Http\Request;

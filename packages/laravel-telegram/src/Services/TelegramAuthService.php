@@ -2,9 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Rezarezaei\LaravelTelegram\Services;
-
-use RuntimeException;
+namespace MeRezaRezaei\LaravelTelegram\Services;
 
 class TelegramAuthService
 {
