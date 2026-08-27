@@ -123,6 +123,8 @@ class PdoDriver implements SqlDriver
                 $stmt->bindValue($paramKey, $val, PDO::PARAM_LOB);
             } elseif (is_string($val) && str_contains($val, "\0")) {
                 $stmt->bindValue($paramKey, $val, PDO::PARAM_LOB);
+            } elseif (is_array($val)) {
+                $stmt->bindValue($paramKey, json_encode($val, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE), PDO::PARAM_STR);
             } else {
                 $stmt->bindValue($paramKey, $val, PDO::PARAM_STR);
             }

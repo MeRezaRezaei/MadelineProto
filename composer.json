@@ -118,7 +118,8 @@
     ],
     "autoload": {
         "psr-4": {
-            "danog\\MadelineProto\\": "src"
+            "danog\\MadelineProto\\": "src",
+            "Danog\\LaravelTelegram\\": "packages/laravel-telegram/src/"
         },
         "files": [
             "src/polyfill.php"
@@ -129,7 +130,8 @@
             "danog\\MadelineProto\\Test\\": "tests/danog/MadelineProto",
             "danog\\MadelineProto\\Db\\": "tests/Db/",
             "danog\\MadelineProto\\Backup\\": "tests/Backup/",
-            "danog\\MadelineProto\\": "tools/"
+            "danog\\MadelineProto\\": "tools/",
+            "Danog\\LaravelTelegram\\Tests\\": "packages/laravel-telegram/tests/"
         },
         "files": [
             "tools/build_docs/schemas.php",

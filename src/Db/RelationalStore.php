@@ -235,6 +235,15 @@ class RelationalStore
         ], ['peer_id', 'id']);
     }
 
+    public function softDeleteMessage(int $peerId, int $id): void
+    {
+        $now = $this->driver->getDialect() === 'pgsql' ? date('c') : time();
+        $this->driver->exec(
+            'UPDATE messages SET deleted_at = ? WHERE peer_id = ? AND id = ?',
+            [$now, $peerId, $id]
+        );
+    }
+
     public function getMessage(int $peerId, int $id): ?array
     {
         $rows = $this->driver->query(
